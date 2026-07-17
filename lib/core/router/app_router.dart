@@ -8,6 +8,7 @@ import 'package:team_workspace/features/auth/presentation/pages/sign_up_page.dar
 import 'package:team_workspace/features/auth/presentation/pages/splash_page.dart';
 import 'package:team_workspace/features/tasks/presentation/pages/create_task_page.dart';
 import 'package:team_workspace/features/tasks/presentation/pages/dashboard_page.dart';
+import 'package:team_workspace/features/tasks/presentation/pages/edit_task_page.dart';
 import 'package:team_workspace/features/tasks/presentation/pages/task_detail_page.dart';
 
 GoRouter buildAppRouter(AuthBloc authBloc) {
@@ -56,6 +57,11 @@ GoRouter buildAppRouter(AuthBloc authBloc) {
         path: AppRoutes.taskDetail,
         builder: (context, state) =>
             TaskDetailPage(taskId: state.pathParameters['taskId']!),
+      ),
+      GoRoute(
+        path: AppRoutes.editTask,
+        builder: (context, state) =>
+            EditTaskPage(taskId: state.pathParameters['taskId']!),
       ),
     ],
   );
