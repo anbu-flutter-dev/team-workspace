@@ -9,6 +9,7 @@ import 'package:team_workspace/features/tasks/presentation/bloc/task_list_bloc.d
 import 'package:team_workspace/features/tasks/presentation/bloc/task_list_event.dart';
 import 'package:team_workspace/features/tasks/presentation/bloc/task_list_state.dart';
 import 'package:team_workspace/features/tasks/presentation/widgets/task_card.dart';
+import 'package:team_workspace/features/tasks/presentation/widgets/task_search_filter_bar.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -155,6 +156,8 @@ class _TaskListView extends StatelessWidget {
       );
     }
 
+    final filteredTasks = state.filteredTasks;
+
     return RefreshIndicator(
       onRefresh: () async {
         context.read<TaskListBloc>().add(const TaskListRefreshRequested());
@@ -165,25 +168,62 @@ class _TaskListView extends StatelessWidget {
       child: Column(
         children: [
           if (state.isFromCache) const _CachedDataBanner(),
-          Expanded(
-            child: ListView.builder(
-              controller: scrollController,
-              itemCount:
-                  state.tasks.length +
-                  (state.hasMore || state.paginationError != null ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index >= state.tasks.length) {
-                  return _PaginationFooter(state: state);
-                }
-                final task = state.tasks[index];
-                return TaskCard(
-                  task: task,
-                  onTap: () => context.push(AppRoutes.taskDetailPath(task.id)),
-                );
-              },
+          TaskSearchFilterBar(state: state),
+          if (filteredTasks.isEmpty)
+            const Expanded(child: _NoResultsView())
+          else
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount:
+                    filteredTasks.length +
+                    (state.hasMore || state.paginationError != null ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index >= filteredTasks.length) {
+                    return _PaginationFooter(state: state);
+                  }
+                  final task = filteredTasks[index];
+                  return TaskCard(
+                    task: task,
+                    onTap: () =>
+                        context.push(AppRoutes.taskDetailPath(task.id)),
+                  );
+                },
+              ),
             ),
-          ),
         ],
+      ),
+    );
+  }
+}
+
+class _NoResultsView extends StatelessWidget {
+  const _NoResultsView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.search_off,
+              size: 48,
+              color: Theme.of(context).colorScheme.outline,
+            ),
+            const SizedBox(height: 12),
+            const Text('No tasks match your search or filters'),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => context.read<TaskListBloc>().add(
+                const TaskListFiltersCleared(),
+              ),
+              child: const Text('Clear all filters'),
+            ),
+          ],
+        ),
       ),
     );
   }
