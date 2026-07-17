@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:injectable/injectable.dart';
 import 'package:team_workspace/core/error/exceptions.dart';
 import 'package:team_workspace/core/error/failure.dart';
@@ -18,16 +19,31 @@ import 'package:team_workspace/features/tasks/domain/task_enrichment.dart';
 
 @LazySingleton(as: TaskRepository)
 class TaskRepositoryImpl implements TaskRepository {
-  TaskRepositoryImpl(this._remote, this._local);
+  TaskRepositoryImpl(this._remote, this._local, this._connectivity) {
+    // Best-effort — if this never fires, queued writes just wait for the
+    // next explicit syncPendingOperations() call (e.g. on dashboard refresh).
+    // Not stored: this repository is a singleton for the app's lifetime, so
+    // there's no meaningful moment to cancel the subscription anyway.
+    _connectivity.onConnectivityChanged.listen((results) {
+      if (_isConnected(results)) unawaited(syncPendingOperations());
+    });
+  }
 
   final TaskRemoteDataSource _remote;
   final TaskLocalDataSource _local;
+  final Connectivity _connectivity;
 
   final StreamController<Task> _taskUpdatesController =
       StreamController.broadcast();
 
   @override
   Stream<Task> get taskUpdates => _taskUpdatesController.stream;
+
+  bool _isConnected(List<ConnectivityResult> results) =>
+      results.any((r) => r != ConnectivityResult.none);
+
+  Future<bool> _isOnline() async =>
+      _isConnected(await _connectivity.checkConnectivity());
 
   @override
   Future<Result<TaskPage>> getTasks({required int page}) async {
@@ -104,11 +120,17 @@ class TaskRepositoryImpl implements TaskRepository {
     }
 
     _taskUpdatesController.add(task);
-    unawaited(
-      _remote
-          .createTask(todo: title, completed: false)
-          .catchError((Object e) => log('best-effort create failed', error: e)),
-    );
+
+    if (await _isOnline()) {
+      try {
+        await _remote.createTask(todo: title, completed: false);
+      } on Exception catch (e) {
+        log('create call failed, queuing for retry', error: e);
+        await _local.enqueuePendingSync(id);
+      }
+    } else {
+      await _local.enqueuePendingSync(id);
+    }
     return Ok(task);
   }
 
@@ -123,21 +145,52 @@ class TaskRepositoryImpl implements TaskRepository {
     _taskUpdatesController.add(task);
 
     if (!task.isLocalOnly) {
-      unawaited(
-        _remote
-            .updateTask(
-              int.parse(task.id),
-              todo: task.title,
-              completed: task.isCompleted,
-            )
-            .catchError(
-              (Object e) => log('best-effort update failed', error: e),
-            ),
-      );
+      if (await _isOnline()) {
+        try {
+          await _remote.updateTask(
+            int.parse(task.id),
+            todo: task.title,
+            completed: task.isCompleted,
+          );
+        } on Exception catch (e) {
+          log('update call failed, queuing for retry', error: e);
+          await _local.enqueuePendingSync(task.id);
+        }
+      } else {
+        await _local.enqueuePendingSync(task.id);
+      }
     }
     return Ok(task);
   }
 
   @override
-  Future<void> syncPendingOperations() async {}
+  Future<void> syncPendingOperations() async {
+    if (!await _isOnline()) return;
+
+    final overlay = _local.readOverlay();
+    for (final id in _local.readPendingSyncIds()) {
+      final task = overlay[id];
+      if (task == null) {
+        await _local.removePendingSync(id);
+        continue;
+      }
+      try {
+        if (task.isLocalOnly) {
+          await _remote.createTask(
+            todo: task.title,
+            completed: task.isCompleted,
+          );
+        } else {
+          await _remote.updateTask(
+            int.parse(task.id),
+            todo: task.title,
+            completed: task.isCompleted,
+          );
+        }
+        await _local.removePendingSync(id);
+      } on Exception catch (e) {
+        log('sync retry still failing for $id', error: e);
+      }
+    }
+  }
 }

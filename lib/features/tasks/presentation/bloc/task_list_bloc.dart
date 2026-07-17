@@ -36,6 +36,7 @@ class TaskListBloc extends Bloc<TaskListEvent, TaskListState> {
     Emitter<TaskListState> emit,
   ) async {
     emit(const TaskListLoading());
+    unawaited(_repository.syncPendingOperations());
     final result = await _getTasks(page: 1);
     result.fold(
       (failure) => emit(TaskListLoadFailure(failure.message)),

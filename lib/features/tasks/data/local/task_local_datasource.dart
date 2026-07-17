@@ -13,6 +13,13 @@ abstract interface class TaskLocalDataSource {
   List<Task>? readCachedTasks();
 
   Future<void> writeCachedTasks(List<Task> tasks);
+
+  /// Task ids whose remote write was skipped or failed and still needs a replay.
+  List<String> readPendingSyncIds();
+
+  Future<void> enqueuePendingSync(String id);
+
+  Future<void> removePendingSync(String id);
 }
 
 @LazySingleton(as: TaskLocalDataSource)
@@ -20,12 +27,15 @@ class HiveTaskLocalDataSource implements TaskLocalDataSource {
   HiveTaskLocalDataSource(
     @Named(HiveBoxes.taskOverlay) this._overlayBox,
     @Named(HiveBoxes.taskCache) this._cacheBox,
+    @Named(HiveBoxes.writeQueue) this._queueBox,
   );
 
   final Box<dynamic> _overlayBox;
   final Box<dynamic> _cacheBox;
+  final Box<dynamic> _queueBox;
 
   static const String _cacheKey = 'tasks';
+  static const String _queueKey = 'pending_ids';
 
   @override
   Map<String, Task> readOverlay() {
@@ -56,5 +66,25 @@ class HiveTaskLocalDataSource implements TaskLocalDataSource {
   @override
   Future<void> writeCachedTasks(List<Task> tasks) {
     return _cacheBox.put(_cacheKey, tasks.map((t) => t.toJson()).toList());
+  }
+
+  @override
+  List<String> readPendingSyncIds() {
+    final raw = _queueBox.get(_queueKey);
+    if (raw is! List) return [];
+    return raw.cast<String>();
+  }
+
+  @override
+  Future<void> enqueuePendingSync(String id) {
+    final ids = readPendingSyncIds();
+    if (!ids.contains(id)) ids.add(id);
+    return _queueBox.put(_queueKey, ids);
+  }
+
+  @override
+  Future<void> removePendingSync(String id) {
+    final ids = readPendingSyncIds()..remove(id);
+    return _queueBox.put(_queueKey, ids);
   }
 }
