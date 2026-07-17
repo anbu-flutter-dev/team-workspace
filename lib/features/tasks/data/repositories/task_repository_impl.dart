@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:injectable/injectable.dart';
 import 'package:team_workspace/core/error/exceptions.dart';
 import 'package:team_workspace/core/error/failure.dart';
 import 'package:team_workspace/core/error/result.dart';
@@ -19,7 +18,6 @@ import 'package:team_workspace/features/tasks/domain/entities/task_status.dart';
 import 'package:team_workspace/features/tasks/domain/repositories/task_repository.dart';
 import 'package:team_workspace/features/tasks/domain/task_enrichment.dart';
 
-@LazySingleton(as: TaskRepository)
 class TaskRepositoryImpl implements TaskRepository {
   TaskRepositoryImpl(
     this._remote,

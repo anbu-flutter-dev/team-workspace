@@ -1,6 +1,4 @@
 import 'package:hive_ce/hive_ce.dart';
-import 'package:injectable/injectable.dart';
-import 'package:team_workspace/core/di/hive_boxes.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task.dart';
 
 /// Remembers the latest version of any task created or edited on this device.
@@ -10,9 +8,8 @@ import 'package:team_workspace/features/tasks/domain/entities/task.dart';
 /// source of truth for local changes: every create, edit, or status toggle
 /// writes the resulting [Task] here, keyed by id, and every read checks
 /// here first before trusting whatever dummyjson returned.
-@injectable
 class TaskOverlayStore {
-  TaskOverlayStore(@Named(HiveBoxes.taskOverlay) this._box);
+  TaskOverlayStore(this._box);
 
   final Box<dynamic> _box;
 

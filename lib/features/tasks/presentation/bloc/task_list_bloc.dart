@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:injectable/injectable.dart';
 import 'package:team_workspace/core/error/result.dart';
 import 'package:team_workspace/core/network/api_constants.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task.dart';
@@ -10,7 +9,6 @@ import 'package:team_workspace/features/tasks/domain/usecases/get_tasks_usecase.
 import 'package:team_workspace/features/tasks/presentation/bloc/task_list_event.dart';
 import 'package:team_workspace/features/tasks/presentation/bloc/task_list_state.dart';
 
-@injectable
 class TaskListBloc extends Bloc<TaskListEvent, TaskListState> {
   TaskListBloc(this._getTasks, this._repository)
     : super(const TaskListLoading()) {
@@ -81,6 +79,7 @@ class TaskListBloc extends Bloc<TaskListEvent, TaskListState> {
     TaskListNextPageRequested event,
     Emitter<TaskListState> emit,
   ) async {
+    await Future.delayed(const Duration(seconds: 2));
     await _fetchNextPage(emit);
   }
 

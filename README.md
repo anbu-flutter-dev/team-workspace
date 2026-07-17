@@ -47,14 +47,15 @@ the app compiles and the widget/bloc test suite doesn't touch real Firebase.
 
 ### 3. Generate code
 
-`*.g.dart` / `*.freezed.dart` / `*.config.dart` are gitignored — generate them with:
+`*.g.dart` files (json_serializable output) are gitignored — generate them with:
 
 ```bash
 dart run build_runner build --delete-conflicting-outputs
 ```
 
-Re-run this after changing any `@freezed`, `@JsonSerializable`, or `@injectable`
-class.
+Re-run this after changing any `@JsonSerializable` class. DI (`lib/core/di/injection.dart`)
+and entities (`Task`, `AssignedUser`) are hand-written, not generated — see
+[Why no freezed or injectable](#why-no-freezed-or-injectable) below.
 
 ### 4. Run
 
@@ -71,7 +72,7 @@ Firebase, or Hive imports. Repositories return a hand-rolled `Result<T>`
 ```
 lib/
   core/
-    di/            # get_it + injectable wiring, Hive box names/module
+    di/            # hand-written get_it registration, Hive box names
     network/       # dio client config, DioException -> app exception mapping
     error/         # Failure types, Result<T>, app-level exceptions
     router/        # go_router config, auth-aware redirect
@@ -98,6 +99,36 @@ test/
 `sealed class Result<T> { }` with `Ok<T>`/`Err<T>` subtypes plus a `fold`
 extension reads the same as `Either` at call sites without adding `dartz` as a
 dependency for one type.
+
+### Why no freezed or injectable
+
+The original spec called for both, but this codebase doesn't use either —
+removed deliberately, not just never added:
+
+- **DI (`lib/core/di/injection.dart`)** is one `configureDependencies()`
+  function that calls `getIt.registerLazySingleton(...)` /
+  `getIt.registerFactory(...)` directly, in dependency order, in four small
+  private functions (external deps → Hive boxes → auth feature → tasks
+  feature). The entire dependency graph is readable top to bottom in one
+  file without running codegen first — no `@injectable` annotations, no
+  `@LazySingleton(as: X)`, no generated `injection.config.dart`.
+- **`Task` and `AssignedUser`** (the only two entities that used `@freezed`)
+  are now plain classes extending `Equatable`, with a hand-written
+  `copyWith` and `@JsonSerializable()` for `toJson`/`fromJson`. Everything
+  else in the domain layer was already hand-rolled (`AppUser`, `TaskPage`,
+  `Failure`, `Result<T>`), so this makes the two freezed holdouts consistent
+  with the rest of the codebase instead of a special case.
+- This did surface one real bug worth knowing: `@JsonSerializable()`
+  defaults to `explicitToJson: false`, so `Task`'s generated `toJson()`
+  initially put the raw `AssignedUser` object into the map instead of
+  calling `.toJson()` on it — compiled fine, then crashed the first time
+  Hive tried to persist a task (`HiveError: Cannot write, unknown type:
+  AssignedUser`). Freezed's own serialization codegen never has this
+  problem because it always emits nested calls explicitly. Fixed with
+  `@JsonSerializable(explicitToJson: true)` on `Task`; see
+  `test/features/tasks/domain/entities/task_test.dart` for the regression
+  test that pins this down (asserts the JSON's `assignedUser` key is a
+  `Map`, not an `AssignedUser` instance).
 
 ## Data strategy (read this before judging "why is X derived")
 
@@ -153,17 +184,17 @@ still there, so local edits survive.
 |---|---|
 | `flutter_bloc` | State management — one bloc per screen concern, explicit loading/success/failure states |
 | `equatable` | Value equality for bloc events/states without boilerplate `==`/`hashCode` |
-| `get_it` + `injectable` | Dependency injection with codegen — no manual service locator wiring |
+| `get_it` | Service locator — registered by hand in `injection.dart`, see [Why no freezed or injectable](#why-no-freezed-or-injectable) |
 | `dio` | HTTP client for the dummyjson REST API |
 | `hive_ce` + `hive_ce_flutter` | Local persistence — overlay, cache, and offline write queue. `_ce` fork because upstream `hive` is unmaintained |
-| `freezed_annotation` + `json_annotation` | Immutable entities/DTOs with generated `copyWith`/`toJson`/`fromJson` |
+| `json_annotation` | `@JsonSerializable()` codegen for `toJson`/`fromJson` on entities and DTOs |
 | `go_router` | Declarative navigation with an auth-aware `redirect` |
 | `intl` | Date formatting |
 | `connectivity_plus` | Detects online/offline for the write queue |
 | `firebase_core` + `firebase_auth` | Email/password authentication |
 | `logger` (via a thin `log()` wrapper) | No bare `print` in the codebase |
 | `bloc_test` + `mocktail` (dev) | Bloc and repository tests |
-| `build_runner`, `injectable_generator`, `freezed`, `json_serializable` (dev) | Codegen |
+| `build_runner`, `json_serializable` (dev) | Codegen for `toJson`/`fromJson` only — no DI or entity codegen |
 
 ## Assumptions
 
@@ -194,8 +225,8 @@ still there, so local edits survive.
   channel (`3.47.0-0.1.pre`), which is what `pubspec.yaml`'s `environment.sdk`
   constraint reflects and what CI is pinned to. On a machine running Flutter
   **stable**, `flutter pub get` may fail to resolve — some dependency
-  versions (`injectable ^3.0.0`, `freezed ^3.2.5`, `hive_ce`, etc.) were
-  resolved against this dev SDK. If you hit this, the fix is to relax
+  versions (`hive_ce`, `go_router ^17`, etc.) were resolved against this dev
+  SDK. If you hit this, the fix is to relax
   `environment.sdk` and downgrade the affected packages to stable-compatible
   versions; I didn't do this preemptively since I couldn't verify it without
   a second SDK install.

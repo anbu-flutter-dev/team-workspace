@@ -1,5 +1,4 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:injectable/injectable.dart';
 import 'package:team_workspace/core/error/result.dart';
 import 'package:team_workspace/features/tasks/domain/usecases/create_task_usecase.dart';
 import 'package:team_workspace/features/tasks/domain/usecases/update_task_usecase.dart';
@@ -7,7 +6,6 @@ import 'package:team_workspace/features/tasks/presentation/bloc/task_form_event.
 import 'package:team_workspace/features/tasks/presentation/bloc/task_form_state.dart';
 
 /// Shared by the create and edit screens — `event.existingTask` picks the path.
-@injectable
 class TaskFormBloc extends Bloc<TaskFormEvent, TaskFormState> {
   TaskFormBloc(this._createTask, this._updateTask)
     : super(const TaskFormInitial()) {

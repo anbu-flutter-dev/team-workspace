@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:injectable/injectable.dart';
 import 'package:team_workspace/core/error/result.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task_status.dart';
@@ -11,7 +10,6 @@ import 'package:team_workspace/features/tasks/domain/usecases/update_task_usecas
 import 'package:team_workspace/features/tasks/presentation/bloc/task_detail_event.dart';
 import 'package:team_workspace/features/tasks/presentation/bloc/task_detail_state.dart';
 
-@injectable
 class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
   TaskDetailBloc(this._getTaskById, this._updateTask, this._repository)
     : super(const TaskDetailLoading()) {

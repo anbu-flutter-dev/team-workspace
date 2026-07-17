@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:injectable/injectable.dart';
 import 'package:team_workspace/core/network/api_constants.dart';
 import 'package:team_workspace/core/network/api_exception_mapper.dart';
 import 'package:team_workspace/features/tasks/data/models/task_dto.dart';
@@ -15,7 +14,6 @@ abstract interface class TaskRemoteDataSource {
   Future<void> updateTask(int id, {String? todo, bool? completed});
 }
 
-@LazySingleton(as: TaskRemoteDataSource)
 class TaskRemoteDataSourceImpl implements TaskRemoteDataSource {
   TaskRemoteDataSourceImpl(this._dio);
 

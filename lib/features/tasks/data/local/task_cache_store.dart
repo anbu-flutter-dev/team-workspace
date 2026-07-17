@@ -1,6 +1,4 @@
 import 'package:hive_ce/hive_ce.dart';
-import 'package:injectable/injectable.dart';
-import 'package:team_workspace/core/di/hive_boxes.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task.dart';
 
 /// Snapshot of the last task list that was successfully loaded.
@@ -8,9 +6,8 @@ import 'package:team_workspace/features/tasks/domain/entities/task.dart';
 /// Purely a fallback: if fetching page 1 fails because there's no network,
 /// the dashboard shows whatever is stored here instead of an empty screen,
 /// with a "showing cached data" banner.
-@injectable
 class TaskCacheStore {
-  TaskCacheStore(@Named(HiveBoxes.taskCache) this._box);
+  TaskCacheStore(this._box);
 
   final Box<dynamic> _box;
 

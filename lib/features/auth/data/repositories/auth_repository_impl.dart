@@ -1,5 +1,4 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:injectable/injectable.dart';
 import 'package:team_workspace/core/error/failure.dart';
 import 'package:team_workspace/core/error/result.dart';
 import 'package:team_workspace/features/auth/data/datasources/auth_remote_datasource.dart';
@@ -8,7 +7,6 @@ import 'package:team_workspace/features/auth/data/models/app_user_mapper.dart';
 import 'package:team_workspace/features/auth/domain/entities/app_user.dart';
 import 'package:team_workspace/features/auth/domain/repositories/auth_repository.dart';
 
-@LazySingleton(as: AuthRepository)
 class AuthRepositoryImpl implements AuthRepository {
   AuthRepositoryImpl(this._remoteDataSource);
 

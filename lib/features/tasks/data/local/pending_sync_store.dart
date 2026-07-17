@@ -1,6 +1,4 @@
 import 'package:hive_ce/hive_ce.dart';
-import 'package:injectable/injectable.dart';
-import 'package:team_workspace/core/di/hive_boxes.dart';
 
 /// Ids of tasks whose create/edit reached [TaskOverlayStore] but never
 /// reached the server — because we were offline, or the request failed.
@@ -9,9 +7,8 @@ import 'package:team_workspace/core/di/hive_boxes.dart';
 /// pending write, the repository looks up the *current* overlay entry for
 /// that id, so a task edited twice while offline is synced once, with its
 /// latest data — this store doesn't need to know anything about that.
-@injectable
 class PendingSyncStore {
-  PendingSyncStore(@Named(HiveBoxes.writeQueue) this._box);
+  PendingSyncStore(this._box);
 
   final Box<dynamic> _box;
 

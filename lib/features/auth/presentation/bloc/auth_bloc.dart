@@ -1,5 +1,4 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:injectable/injectable.dart';
 import 'package:team_workspace/core/error/result.dart';
 import 'package:team_workspace/features/auth/domain/entities/app_user.dart';
 import 'package:team_workspace/features/auth/domain/repositories/auth_repository.dart';
@@ -9,7 +8,6 @@ import 'package:team_workspace/features/auth/domain/usecases/sign_up_usecase.dar
 import 'package:team_workspace/features/auth/presentation/bloc/auth_event.dart';
 import 'package:team_workspace/features/auth/presentation/bloc/auth_state.dart';
 
-@lazySingleton
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc(this._authRepository, this._signIn, this._signUp, this._signOut)
     : super(const AuthInitial()) {

@@ -1,17 +1,22 @@
-import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:equatable/equatable.dart';
+import 'package:json_annotation/json_annotation.dart';
 
-part 'assigned_user.freezed.dart';
 part 'assigned_user.g.dart';
 
 /// A mock user assigned to a task — dummyjson has no concept of this, so it's derived.
-@freezed
-abstract class AssignedUser with _$AssignedUser {
-  const AssignedUser._();
+@JsonSerializable()
+class AssignedUser extends Equatable {
+  const AssignedUser({required this.name});
 
-  const factory AssignedUser({required String name}) = _AssignedUser;
+  final String name;
+
+  String get initial => name.isNotEmpty ? name[0].toUpperCase() : '?';
 
   factory AssignedUser.fromJson(Map<String, dynamic> json) =>
       _$AssignedUserFromJson(json);
 
-  String get initial => name.isNotEmpty ? name[0].toUpperCase() : '?';
+  Map<String, dynamic> toJson() => _$AssignedUserToJson(this);
+
+  @override
+  List<Object?> get props => [name];
 }

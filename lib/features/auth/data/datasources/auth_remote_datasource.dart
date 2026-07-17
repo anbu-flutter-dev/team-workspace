@@ -1,5 +1,4 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:injectable/injectable.dart';
 
 /// Thin wrapper around FirebaseAuth so the repository can be tested against
 /// a fake instead of mocking the SDK's concrete class directly.
@@ -15,7 +14,6 @@ abstract interface class AuthRemoteDataSource {
   Future<void> signOut();
 }
 
-@LazySingleton(as: AuthRemoteDataSource)
 class FirebaseAuthDataSource implements AuthRemoteDataSource {
   FirebaseAuthDataSource(this._firebaseAuth);
 
