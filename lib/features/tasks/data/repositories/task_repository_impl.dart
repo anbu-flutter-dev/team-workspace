@@ -8,7 +8,9 @@ import 'package:team_workspace/core/error/result.dart';
 import 'package:team_workspace/core/network/api_constants.dart';
 import 'package:team_workspace/core/utils/log.dart';
 import 'package:team_workspace/features/tasks/data/datasources/task_remote_datasource.dart';
-import 'package:team_workspace/features/tasks/data/local/task_local_datasource.dart';
+import 'package:team_workspace/features/tasks/data/local/pending_sync_store.dart';
+import 'package:team_workspace/features/tasks/data/local/task_cache_store.dart';
+import 'package:team_workspace/features/tasks/data/local/task_overlay_store.dart';
 import 'package:team_workspace/features/tasks/data/models/task_dto_mapper.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task_page.dart';
@@ -19,18 +21,24 @@ import 'package:team_workspace/features/tasks/domain/task_enrichment.dart';
 
 @LazySingleton(as: TaskRepository)
 class TaskRepositoryImpl implements TaskRepository {
-  TaskRepositoryImpl(this._remote, this._local, this._connectivity) {
-    // Best-effort — if this never fires, queued writes just wait for the
-    // next explicit syncPendingOperations() call (e.g. on dashboard refresh).
+  TaskRepositoryImpl(
+    this._remote,
+    this._overlay,
+    this._cache,
+    this._pendingSync,
+    this._connectivity,
+  ) {
     // Not stored: this repository is a singleton for the app's lifetime, so
     // there's no meaningful moment to cancel the subscription anyway.
     _connectivity.onConnectivityChanged.listen((results) {
-      if (_isConnected(results)) unawaited(syncPendingOperations());
+      if (_isOnline(results)) unawaited(syncPendingOperations());
     });
   }
 
   final TaskRemoteDataSource _remote;
-  final TaskLocalDataSource _local;
+  final TaskOverlayStore _overlay;
+  final TaskCacheStore _cache;
+  final PendingSyncStore _pendingSync;
   final Connectivity _connectivity;
 
   final StreamController<Task> _taskUpdatesController =
@@ -39,37 +47,36 @@ class TaskRepositoryImpl implements TaskRepository {
   @override
   Stream<Task> get taskUpdates => _taskUpdatesController.stream;
 
-  bool _isConnected(List<ConnectivityResult> results) =>
-      results.any((r) => r != ConnectivityResult.none);
+  bool _isOnline(List<ConnectivityResult> results) =>
+      results.any((result) => result != ConnectivityResult.none);
 
-  Future<bool> _isOnline() async =>
-      _isConnected(await _connectivity.checkConnectivity());
+  Future<bool> _checkIsOnline() async =>
+      _isOnline(await _connectivity.checkConnectivity());
 
   @override
   Future<Result<TaskPage>> getTasks({required int page}) async {
     try {
       final response = await _remote.fetchTasks(page: page);
-      final overlay = _local.readOverlay();
+      final overlay = _overlay.readAll();
+
+      // An overlay entry always wins — it holds the real state for anything
+      // created or edited locally, while dummyjson only ever knows the
+      // original, unedited version.
       final apiTasks = response.todos
           .map((dto) => overlay[dto.id.toString()] ?? dto.toEntity())
           .toList();
 
-      var tasks = apiTasks;
-      if (page == 1) {
-        final localOnly = overlay.values.where((t) => t.isLocalOnly).toList()
-          ..sort((a, b) => b.id.compareTo(a.id));
-        tasks = [...localOnly, ...apiTasks];
-        unawaited(_local.writeCachedTasks(tasks));
-      }
+      final tasks = page == 1
+          ? [..._localOnlyTasksNewestFirst(overlay), ...apiTasks]
+          : apiTasks;
+      if (page == 1) unawaited(_cache.write(tasks));
 
       final hasMore = response.todos.length == ApiConstants.pageSize;
       return Ok(TaskPage(tasks: tasks, hasMore: hasMore, isFromCache: false));
     } on NetworkException {
-      if (page == 1) {
-        final cached = _local.readCachedTasks();
-        if (cached != null) {
-          return Ok(TaskPage(tasks: cached, hasMore: false, isFromCache: true));
-        }
+      final cached = page == 1 ? _cache.read() : null;
+      if (cached != null) {
+        return Ok(TaskPage(tasks: cached, hasMore: false, isFromCache: true));
       }
       return const Err(NetworkFailure());
     } on ServerException catch (e) {
@@ -77,9 +84,25 @@ class TaskRepositoryImpl implements TaskRepository {
     }
   }
 
+  /// Tasks created on this device that dummyjson has never seen — these
+  /// have a `local_<createdAt>` id instead of a numeric one, and only show
+  /// up on page 1, newest first.
+  List<Task> _localOnlyTasksNewestFirst(Map<String, Task> overlay) {
+    final localOnlyTasks = overlay.values
+        .where((task) => task.isLocalOnly)
+        .toList();
+    localOnlyTasks.sort(
+      (a, b) => _createdAtMillis(b.id).compareTo(_createdAtMillis(a.id)),
+    );
+    return localOnlyTasks;
+  }
+
+  int _createdAtMillis(String localId) =>
+      int.parse(localId.substring('local_'.length));
+
   @override
   Future<Result<Task>> getTaskById(String id) async {
-    final overlayHit = _local.readOverlay()[id];
+    final overlayHit = _overlay.readAll()[id];
     if (overlayHit != null) return Ok(overlayHit);
 
     final numericId = int.tryParse(id);
@@ -101,8 +124,8 @@ class TaskRepositoryImpl implements TaskRepository {
     required String description,
     required TaskPriority priority,
     required DateTime dueDate,
-  }) async {
-    final id = 'local_${DateTime.now().microsecondsSinceEpoch}';
+  }) {
+    final id = 'local_${DateTime.now().millisecondsSinceEpoch}';
     final task = Task(
       id: id,
       title: title,
@@ -112,52 +135,53 @@ class TaskRepositoryImpl implements TaskRepository {
       status: TaskStatus.pending,
       assignedUser: TaskEnrichment.assignedUserFor(id.hashCode),
     );
-
-    try {
-      await _local.writeOverlayEntry(task);
-    } on Exception {
-      return const Err(CacheFailure());
-    }
-
-    _taskUpdatesController.add(task);
-
-    if (await _isOnline()) {
-      try {
-        await _remote.createTask(todo: title, completed: false);
-      } on Exception catch (e) {
-        log('create call failed, queuing for retry', error: e);
-        await _local.enqueuePendingSync(id);
-      }
-    } else {
-      await _local.enqueuePendingSync(id);
-    }
-    return Ok(task);
+    return _saveLocallyThenSyncRemote(
+      task,
+      remoteCall: () => _remote.createTask(todo: title, completed: false),
+    );
   }
 
   @override
-  Future<Result<Task>> updateTask(Task task) async {
-    try {
-      await _local.writeOverlayEntry(task);
-    } on Exception {
-      return const Err(CacheFailure());
-    }
-
-    _taskUpdatesController.add(task);
-
-    if (!task.isLocalOnly) {
-      if (await _isOnline()) {
-        try {
-          await _remote.updateTask(
+  Future<Result<Task>> updateTask(Task task) {
+    // A task that's never synced yet has no numeric id for the API to look
+    // up — its only remote call left is the create it's still waiting on.
+    final remoteCall = task.isLocalOnly
+        ? null
+        : () => _remote.updateTask(
             int.parse(task.id),
             todo: task.title,
             completed: task.isCompleted,
           );
+    return _saveLocallyThenSyncRemote(task, remoteCall: remoteCall);
+  }
+
+  /// Every write (create, edit, status toggle) follows the same shape:
+  /// save to the overlay first — that always "succeeds" from the user's
+  /// point of view — then best-effort tell the real API. Offline, or a
+  /// failed call, queues the id for [syncPendingOperations] instead of
+  /// surfacing an error, since dummyjson wouldn't have kept the write
+  /// anyway; only a failed *local* save is a real failure.
+  Future<Result<Task>> _saveLocallyThenSyncRemote(
+    Task task, {
+    required Future<void> Function()? remoteCall,
+  }) async {
+    try {
+      await _overlay.save(task);
+    } on Exception {
+      return const Err(CacheFailure());
+    }
+    _taskUpdatesController.add(task);
+
+    if (remoteCall != null) {
+      if (await _checkIsOnline()) {
+        try {
+          await remoteCall();
         } on Exception catch (e) {
-          log('update call failed, queuing for retry', error: e);
-          await _local.enqueuePendingSync(task.id);
+          log('remote write failed, queuing for retry', error: e);
+          await _pendingSync.add(task.id);
         }
       } else {
-        await _local.enqueuePendingSync(task.id);
+        await _pendingSync.add(task.id);
       }
     }
     return Ok(task);
@@ -165,13 +189,13 @@ class TaskRepositoryImpl implements TaskRepository {
 
   @override
   Future<void> syncPendingOperations() async {
-    if (!await _isOnline()) return;
+    if (!await _checkIsOnline()) return;
 
-    final overlay = _local.readOverlay();
-    for (final id in _local.readPendingSyncIds()) {
+    final overlay = _overlay.readAll();
+    for (final id in _pendingSync.read()) {
       final task = overlay[id];
       if (task == null) {
-        await _local.removePendingSync(id);
+        await _pendingSync.remove(id);
         continue;
       }
       try {
@@ -187,7 +211,7 @@ class TaskRepositoryImpl implements TaskRepository {
             completed: task.isCompleted,
           );
         }
-        await _local.removePendingSync(id);
+        await _pendingSync.remove(id);
       } on Exception catch (e) {
         log('sync retry still failing for $id', error: e);
       }

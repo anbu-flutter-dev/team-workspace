@@ -101,6 +101,8 @@ void main() {
         bloc.add(const TaskListNextPageRequested());
       },
       skip: 2,
+      // _onNextPageRequested has a deliberate 2s delay before fetching.
+      wait: const Duration(seconds: 3),
       expect: () => [
         isA<TaskListLoadSuccess>().having(
           (s) => s.isLoadingNextPage,
@@ -133,6 +135,8 @@ void main() {
         bloc.add(const TaskListNextPageRequested());
       },
       skip: 2,
+      // _onNextPageRequested has a deliberate 2s delay before fetching.
+      wait: const Duration(seconds: 3),
       expect: () => [
         isA<TaskListLoadSuccess>().having(
           (s) => s.isLoadingNextPage,

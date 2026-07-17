@@ -3,7 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:team_workspace/core/error/result.dart';
 import 'package:team_workspace/features/tasks/data/datasources/task_remote_datasource.dart';
-import 'package:team_workspace/features/tasks/data/local/task_local_datasource.dart';
+import 'package:team_workspace/features/tasks/data/local/pending_sync_store.dart';
+import 'package:team_workspace/features/tasks/data/local/task_cache_store.dart';
+import 'package:team_workspace/features/tasks/data/local/task_overlay_store.dart';
 import 'package:team_workspace/features/tasks/data/models/task_dto.dart';
 import 'package:team_workspace/features/tasks/data/repositories/task_repository_impl.dart';
 import 'package:team_workspace/features/tasks/domain/entities/assigned_user.dart';
@@ -13,7 +15,11 @@ import 'package:team_workspace/features/tasks/domain/entities/task_status.dart';
 
 class MockTaskRemoteDataSource extends Mock implements TaskRemoteDataSource {}
 
-class MockTaskLocalDataSource extends Mock implements TaskLocalDataSource {}
+class MockTaskOverlayStore extends Mock implements TaskOverlayStore {}
+
+class MockTaskCacheStore extends Mock implements TaskCacheStore {}
+
+class MockPendingSyncStore extends Mock implements PendingSyncStore {}
 
 class MockConnectivity extends Mock implements Connectivity {}
 
@@ -29,7 +35,9 @@ Task _overlayTask(String id, {String title = 'Overlay title'}) => Task(
 
 void main() {
   late MockTaskRemoteDataSource remote;
-  late MockTaskLocalDataSource local;
+  late MockTaskOverlayStore overlay;
+  late MockTaskCacheStore cache;
+  late MockPendingSyncStore pendingSync;
   late MockConnectivity connectivity;
   late TaskRepositoryImpl repository;
 
@@ -39,16 +47,24 @@ void main() {
 
   setUp(() {
     remote = MockTaskRemoteDataSource();
-    local = MockTaskLocalDataSource();
+    overlay = MockTaskOverlayStore();
+    cache = MockTaskCacheStore();
+    pendingSync = MockPendingSyncStore();
     connectivity = MockConnectivity();
     when(
       () => connectivity.onConnectivityChanged,
     ).thenAnswer((_) => const Stream.empty());
-    when(() => local.writeOverlayEntry(any())).thenAnswer((_) async {});
-    when(() => local.writeCachedTasks(any())).thenAnswer((_) async {});
-    when(() => local.enqueuePendingSync(any())).thenAnswer((_) async {});
-    when(() => local.removePendingSync(any())).thenAnswer((_) async {});
-    repository = TaskRepositoryImpl(remote, local, connectivity);
+    when(() => overlay.save(any())).thenAnswer((_) async {});
+    when(() => cache.write(any())).thenAnswer((_) async {});
+    when(() => pendingSync.add(any())).thenAnswer((_) async {});
+    when(() => pendingSync.remove(any())).thenAnswer((_) async {});
+    repository = TaskRepositoryImpl(
+      remote,
+      overlay,
+      cache,
+      pendingSync,
+      connectivity,
+    );
   });
 
   group('getTasks overlay merge', () {
@@ -65,7 +81,7 @@ void main() {
         ),
       );
       when(
-        () => local.readOverlay(),
+        () => overlay.readAll(),
       ).thenReturn({'2': _overlayTask('2', title: 'Edited 2')});
 
       final result = await repository.getTasks(page: 1);
@@ -89,7 +105,7 @@ void main() {
             limit: 10,
           ),
         );
-        when(() => local.readOverlay()).thenReturn({
+        when(() => overlay.readAll()).thenReturn({
           'local_100': _overlayTask('local_100', title: 'Older local'),
           'local_200': _overlayTask('local_200', title: 'Newer local'),
         });
@@ -127,7 +143,7 @@ void main() {
             completed: any(named: 'completed'),
           ),
         );
-        verify(() => local.enqueuePendingSync(any())).called(1);
+        verify(() => pendingSync.add(any())).called(1);
       },
     );
 
@@ -155,7 +171,7 @@ void main() {
           completed: any(named: 'completed'),
         ),
       ).called(1);
-      verifyNever(() => local.enqueuePendingSync(any()));
+      verifyNever(() => pendingSync.add(any()));
     });
 
     test(
@@ -174,7 +190,7 @@ void main() {
             completed: any(named: 'completed'),
           ),
         );
-        verifyNever(() => local.enqueuePendingSync(any()));
+        verifyNever(() => pendingSync.add(any()));
       },
     );
 
@@ -184,8 +200,8 @@ void main() {
         when(
           () => connectivity.checkConnectivity(),
         ).thenAnswer((_) async => [ConnectivityResult.wifi]);
-        when(() => local.readPendingSyncIds()).thenReturn(['5']);
-        when(() => local.readOverlay()).thenReturn({'5': _overlayTask('5')});
+        when(() => pendingSync.read()).thenReturn(['5']);
+        when(() => overlay.readAll()).thenReturn({'5': _overlayTask('5')});
         when(
           () => remote.updateTask(
             any(),
@@ -203,7 +219,7 @@ void main() {
             completed: any(named: 'completed'),
           ),
         ).called(1);
-        verify(() => local.removePendingSync('5')).called(1);
+        verify(() => pendingSync.remove('5')).called(1);
       },
     );
   });
