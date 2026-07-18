@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:team_workspace/core/di/injection.dart';
 import 'package:team_workspace/features/tasks/domain/entities/assigned_user.dart';
@@ -85,6 +88,74 @@ void main() {
 
       expect(find.text('Due date must be today or later'), findsOneWidget);
       verifyNever(() => bloc.add(any()));
+    },
+  );
+
+  final savedTask = Task(
+    id: '1',
+    title: 'Buy groceries',
+    description: 'Milk, eggs, bread',
+    priority: TaskPriority.medium,
+    dueDate: DateTime(2026, 1, 1),
+    status: TaskStatus.pending,
+    assignedUser: const AssignedUser(name: 'Aditi Rao'),
+  );
+
+  // The success listener calls context.pop(), which needs a real GoRouter
+  // ancestor with something to pop back to — a bare MaterialApp(home:) isn't
+  // enough here, unlike the other tests above that never reach that branch.
+  Future<void> pumpFormPushedOntoRouter(WidgetTester tester) async {
+    final router = GoRouter(
+      initialLocation: '/',
+      routes: [
+        GoRoute(path: '/', builder: (context, state) => const Scaffold()),
+        GoRoute(
+          path: '/form',
+          builder: (context, state) => const TaskFormView(),
+        ),
+      ],
+    );
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    unawaited(router.push('/form'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('shows a plain success message once the remote write synced', (
+    tester,
+  ) async {
+    whenListen(
+      bloc,
+      Stream.fromIterable([
+        TaskFormSubmitSuccess(savedTask, isPendingSync: false),
+      ]),
+      initialState: const TaskFormInitial(),
+    );
+
+    await pumpFormPushedOntoRouter(tester);
+
+    expect(find.text('Task created'), findsOneWidget);
+    expect(find.text('Saved locally. Will sync when online.'), findsNothing);
+  });
+
+  testWidgets(
+    'shows a "saved locally" message instead of a plain success when the '
+    'remote write is only queued',
+    (tester) async {
+      whenListen(
+        bloc,
+        Stream.fromIterable([
+          TaskFormSubmitSuccess(savedTask, isPendingSync: true),
+        ]),
+        initialState: const TaskFormInitial(),
+      );
+
+      await pumpFormPushedOntoRouter(tester);
+
+      expect(
+        find.text('Saved locally. Will sync when online.'),
+        findsOneWidget,
+      );
+      expect(find.text('Task created'), findsNothing);
     },
   );
 }

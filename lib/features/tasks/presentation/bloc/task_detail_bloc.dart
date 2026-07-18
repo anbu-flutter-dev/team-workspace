@@ -55,7 +55,7 @@ class TaskDetailBloc extends Bloc<TaskDetailEvent, TaskDetailState> {
     result.fold((failure) {
       emit(TaskDetailToggleFailed(previous, failure.message));
       emit(TaskDetailLoadSuccess(previous));
-    }, (updated) => emit(TaskDetailLoadSuccess(updated)));
+    }, (outcome) => emit(TaskDetailLoadSuccess(outcome.task)));
   }
 
   void _onExternalUpdateReceived(

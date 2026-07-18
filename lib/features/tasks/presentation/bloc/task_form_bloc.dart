@@ -41,7 +41,12 @@ class TaskFormBloc extends Bloc<TaskFormEvent, TaskFormState> {
 
     result.fold(
       (failure) => emit(TaskFormSubmitFailure(failure.message)),
-      (task) => emit(TaskFormSubmitSuccess(task)),
+      (outcome) => emit(
+        TaskFormSubmitSuccess(
+          outcome.task,
+          isPendingSync: outcome.isPendingSync,
+        ),
+      ),
     );
   }
 }

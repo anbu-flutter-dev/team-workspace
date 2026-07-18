@@ -56,7 +56,9 @@ void main() {
     expect(find.text('Enter a valid email address'), findsOneWidget);
   });
 
-  testWidgets('shows a too-short password error', (tester) async {
+  testWidgets('shows a weak-password error for a short password', (
+    tester,
+  ) async {
     await tester.pumpWidget(buildSubject());
 
     await tester.enterText(
@@ -67,7 +69,13 @@ void main() {
     await tester.tap(find.text('Sign in'));
     await tester.pump();
 
-    expect(find.text('Password must be at least 6 characters'), findsOneWidget);
+    expect(
+      find.text(
+        'Password is too weak. Ensure it is at least 6 characters\n'
+        'and contains mixed case, a number, and a special character.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('dispatches AuthSignInSubmitted once the form is valid', (
@@ -79,7 +87,7 @@ void main() {
       find.byType(TextFormField).at(0),
       'user@example.com',
     );
-    await tester.enterText(find.byType(TextFormField).at(1), 'password123');
+    await tester.enterText(find.byType(TextFormField).at(1), 'Passw0rd!');
     await tester.tap(find.text('Sign in'));
     await tester.pump();
 
@@ -87,7 +95,7 @@ void main() {
       () => authBloc.add(
         const AuthSignInSubmitted(
           email: 'user@example.com',
-          password: 'password123',
+          password: 'Passw0rd!',
         ),
       ),
     ).called(1);

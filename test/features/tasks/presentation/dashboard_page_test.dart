@@ -5,6 +5,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:team_workspace/core/di/injection.dart';
 import 'package:team_workspace/core/theme/theme_cubit.dart';
+import 'package:team_workspace/features/auth/domain/entities/app_user.dart';
+import 'package:team_workspace/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:team_workspace/features/auth/presentation/bloc/auth_event.dart';
+import 'package:team_workspace/features/auth/presentation/bloc/auth_state.dart';
 import 'package:team_workspace/features/tasks/domain/entities/assigned_user.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task_priority.dart';
@@ -19,6 +23,10 @@ class MockTaskListBloc extends MockBloc<TaskListEvent, TaskListState>
 
 class MockThemeCubit extends MockCubit<ThemeMode> implements ThemeCubit {}
 
+class MockAuthBloc extends MockBloc<AuthEvent, AuthState> implements AuthBloc {}
+
+const _user = AppUser(id: '1', email: 'user@example.com');
+
 Task _task(String id, String title) => Task(
   id: id,
   title: title,
@@ -32,6 +40,11 @@ Task _task(String id, String title) => Task(
 void main() {
   late MockTaskListBloc bloc;
   late MockThemeCubit themeCubit;
+  late MockAuthBloc authBloc;
+
+  setUpAll(() {
+    registerFallbackValue(const AuthSignOutRequested());
+  });
 
   setUp(() {
     bloc = MockTaskListBloc();
@@ -40,6 +53,13 @@ void main() {
 
     themeCubit = MockThemeCubit();
     when(() => themeCubit.state).thenReturn(ThemeMode.system);
+
+    authBloc = MockAuthBloc();
+    whenListen(
+      authBloc,
+      const Stream<AuthState>.empty(),
+      initialState: const AuthAuthenticated(_user),
+    );
   });
 
   tearDown(() async {
@@ -49,7 +69,10 @@ void main() {
   Widget buildSubject() => MaterialApp(
     home: BlocProvider<ThemeCubit>.value(
       value: themeCubit,
-      child: const DashboardPage(),
+      child: BlocProvider<AuthBloc>.value(
+        value: authBloc,
+        child: const DashboardPage(),
+      ),
     ),
   );
 
@@ -109,5 +132,27 @@ void main() {
 
     expect(find.text('Buy groceries'), findsOneWidget);
     expect(find.text('Write report'), findsOneWidget);
+  });
+
+  testWidgets('shows a snackbar when sign-out fails', (tester) async {
+    stub(const TaskListLoadSuccess(tasks: [], currentPage: 1, hasMore: false));
+    whenListen(
+      authBloc,
+      Stream.fromIterable([const AuthSubmissionFailure('Network error')]),
+      initialState: const AuthAuthenticated(_user),
+    );
+
+    await tester.pumpWidget(buildSubject());
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.more_vert_rounded));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Log out'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Log out').last);
+    await tester.pump();
+
+    expect(find.text('Sign out failed: Network error'), findsOneWidget);
+    verify(() => authBloc.add(const AuthSignOutRequested())).called(1);
   });
 }

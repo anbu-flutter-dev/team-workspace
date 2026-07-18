@@ -32,6 +32,21 @@ class TaskListBloc extends Bloc<TaskListEvent, TaskListState> {
   late final StreamSubscription<Task> _taskUpdatesSubscription;
   Completer<void>? _refreshCompleter;
 
+  /// Bumped on every full reload (initial load or refresh) — an in-flight
+  /// next-page fetch reads this again after its await, so it can tell a
+  /// refresh reset the list out from under it and drop its own stale
+  /// result instead of appending onto data that's no longer current.
+  int _loadGeneration = 0;
+
+  /// True while a page fetch triggered by [_fetchNextPage] is in flight.
+  /// Set synchronously before any `await`, so back-to-back scroll-triggered
+  /// `TaskListNextPageRequested` events (processed concurrently by the
+  /// bloc's default event transformer) can't both pass the `hasMore` check
+  /// and fire duplicate requests for the same next page — checking
+  /// `state.isLoadingNextPage` alone isn't enough, since that only becomes
+  /// true after the first fetch's own `emit` has round-tripped.
+  bool _isFetchingNextPage = false;
+
   /// Fires a refresh and returns a Future that resolves once it (and any
   /// pagination top-up) is fully done — used by RefreshIndicator. Not based
   /// on racing `stream.firstWhere` against `add()`: this bloc never emits
@@ -50,6 +65,7 @@ class TaskListBloc extends Bloc<TaskListEvent, TaskListState> {
     TaskListStarted event,
     Emitter<TaskListState> emit,
   ) async {
+    _loadGeneration++;
     emit(const TaskListLoading());
     unawaited(_repository.syncPendingOperations());
     final result = await _getTasks(page: 1);
@@ -70,6 +86,7 @@ class TaskListBloc extends Bloc<TaskListEvent, TaskListState> {
     TaskListRefreshRequested event,
     Emitter<TaskListState> emit,
   ) async {
+    _loadGeneration++;
     final result = await _getTasks(page: 1);
     result.fold(
       (failure) {
@@ -104,34 +121,50 @@ class TaskListBloc extends Bloc<TaskListEvent, TaskListState> {
 
   /// Returns false if there was nothing more to fetch or a fetch failed.
   Future<bool> _fetchNextPage(Emitter<TaskListState> emit) async {
+    if (_isFetchingNextPage) return false;
     final current = state;
     if (current is! TaskListLoadSuccess) return false;
-    if (!current.hasMore || current.isLoadingNextPage) return false;
+    if (!current.hasMore) return false;
 
+    _isFetchingNextPage = true;
+    final generation = _loadGeneration;
     emit(current.copyWith(isLoadingNextPage: true, paginationError: null));
-    final nextPage = current.currentPage + 1;
-    final result = await _getTasks(page: nextPage);
-    var fetchedMore = false;
-    result.fold(
-      (failure) => emit(
-        current.copyWith(
-          isLoadingNextPage: false,
-          paginationError: failure.message,
-        ),
-      ),
-      (page) {
-        fetchedMore = true;
-        emit(
-          current.copyWith(
-            tasks: [...current.tasks, ...page.tasks],
-            currentPage: nextPage,
-            hasMore: page.hasMore,
+    try {
+      final nextPage = current.currentPage + 1;
+      final result = await _getTasks(page: nextPage);
+
+      // A refresh (or restart) may have reset the list while this was in
+      // flight — re-read state instead of trusting `current`, which was
+      // captured before the await and would otherwise silently clobber
+      // whatever landed in the meantime with a page appended onto stale data.
+      if (generation != _loadGeneration) return false;
+      final latest = state;
+      if (latest is! TaskListLoadSuccess) return false;
+
+      var fetchedMore = false;
+      result.fold(
+        (failure) => emit(
+          latest.copyWith(
             isLoadingNextPage: false,
+            paginationError: failure.message,
           ),
-        );
-      },
-    );
-    return fetchedMore;
+        ),
+        (page) {
+          fetchedMore = true;
+          emit(
+            latest.copyWith(
+              tasks: [...latest.tasks, ...page.tasks],
+              currentPage: nextPage,
+              hasMore: page.hasMore,
+              isLoadingNextPage: false,
+            ),
+          );
+        },
+      );
+      return fetchedMore;
+    } finally {
+      _isFetchingNextPage = false;
+    }
   }
 
   /// When a filter/search narrows the visible list, keep pulling pages

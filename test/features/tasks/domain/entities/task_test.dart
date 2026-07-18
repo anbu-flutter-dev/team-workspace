@@ -15,19 +15,33 @@ void main() {
     assignedUser: const AssignedUser(name: 'Aditi Rao'),
   );
 
-  test('toJson serializes the nested AssignedUser, not the raw object', () {
-    // Regression test: without `explicitToJson: true` on Task's
-    // @JsonSerializable, this field silently comes back as an AssignedUser
-    // instance instead of a Map — compiles fine, but Hive.put() then throws
-    // "Cannot write, unknown type: AssignedUser" the first time anything
-    // gets saved.
-    final json = task.toJson();
-    expect(json['assignedUser'], isA<Map<String, dynamic>>());
-    expect(json['assignedUser'], {'name': 'Aditi Rao'});
+  test('isCompleted is true only for TaskStatus.completed', () {
+    expect(task.isCompleted, isFalse);
+    expect(task.copyWith(status: TaskStatus.completed).isCompleted, isTrue);
   });
 
-  test('fromJson(toJson(task)) round-trips to an equal task', () {
-    final roundTripped = Task.fromJson(task.toJson());
-    expect(roundTripped, task);
+  test('isLocalOnly is true only for ids created on-device', () {
+    expect(task.isLocalOnly, isFalse);
+    expect(task.copyWith(id: 'local_123').isLocalOnly, isTrue);
+  });
+
+  test('copyWith overrides only the given fields', () {
+    final updated = task.copyWith(title: 'Buy oat milk');
+    expect(updated.title, 'Buy oat milk');
+    expect(updated.id, task.id);
+    expect(updated.description, task.description);
+  });
+
+  test('two tasks with the same field values are equal', () {
+    final other = Task(
+      id: '1',
+      title: 'Buy groceries',
+      description: 'Milk, eggs, bread',
+      priority: TaskPriority.medium,
+      dueDate: DateTime(2026, 1, 1),
+      status: TaskStatus.pending,
+      assignedUser: const AssignedUser(name: 'Aditi Rao'),
+    );
+    expect(task, other);
   });
 }

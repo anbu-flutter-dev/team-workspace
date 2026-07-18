@@ -18,6 +18,7 @@ import 'package:team_workspace/features/auth/domain/usecases/sign_in_usecase.dar
 import 'package:team_workspace/features/auth/domain/usecases/sign_out_usecase.dart';
 import 'package:team_workspace/features/auth/domain/usecases/sign_up_usecase.dart';
 import 'package:team_workspace/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:team_workspace/features/auth/presentation/bloc/auth_event.dart';
 import 'package:team_workspace/features/tasks/data/datasources/task_remote_datasource.dart';
 import 'package:team_workspace/features/tasks/data/local/pending_sync_store.dart';
 import 'package:team_workspace/features/tasks/data/local/task_cache_store.dart';
@@ -84,9 +85,16 @@ void _registerAuthFeature() {
     ..registerFactory(() => SignInUseCase(getIt()))
     ..registerFactory(() => SignUpUseCase(getIt()))
     ..registerFactory(() => SignOutUseCase(getIt()))
-    ..registerLazySingleton(
-      () => AuthBloc(getIt(), getIt(), getIt(), getIt(), getIt()),
-    );
+    // AuthBloc lives for the app's lifetime — the router, the dashboard, and
+    // every auth-gated screen all share this one instance, so GetIt (not a
+    // BlocProvider) owns it. The bootstrap event is dispatched here, once,
+    // right as the singleton comes to life, rather than in main.dart's
+    // widget tree — see the BlocProvider.value note there for why.
+    ..registerLazySingleton(() {
+      final bloc = AuthBloc(getIt(), getIt(), getIt(), getIt(), getIt());
+      bloc.add(const AuthSubscriptionRequested());
+      return bloc;
+    });
 }
 
 void _registerTasksFeature() {

@@ -18,11 +18,15 @@ void main() {
     test('rejects empty', () => expect(Validators.password(''), isNotNull));
     test(
       'rejects fewer than 6 characters',
-      () => expect(Validators.password('12345'), isNotNull),
+      () => expect(Validators.password('Ab1!c'), isNotNull),
     );
     test(
-      'accepts 6 or more characters',
-      () => expect(Validators.password('123456'), isNull),
+      'rejects a password missing mixed case, digit, or special character',
+      () => expect(Validators.password('123456'), isNotNull),
+    );
+    test(
+      'accepts a password with mixed case, a digit, and a special character',
+      () => expect(Validators.password('Passw0rd!'), isNull),
     );
   });
 

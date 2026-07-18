@@ -2,6 +2,7 @@ import 'package:team_workspace/core/error/result.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task_page.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task_priority.dart';
+import 'package:team_workspace/features/tasks/domain/entities/task_save_outcome.dart';
 
 /// One page is `limit`/`skip` over dummyjson, merged with the local overlay
 /// (created/edited/toggled tasks) so writes reflect immediately and survive restarts.
@@ -14,14 +15,14 @@ abstract interface class TaskRepository {
 
   Future<Result<Task>> getTaskById(String id);
 
-  Future<Result<Task>> createTask({
+  Future<Result<TaskSaveOutcome>> createTask({
     required String title,
     required String description,
     required TaskPriority priority,
     required DateTime dueDate,
   });
 
-  Future<Result<Task>> updateTask(Task task);
+  Future<Result<TaskSaveOutcome>> updateTask(Task task);
 
   /// Replays queued offline writes against the API once connectivity returns.
   Future<void> syncPendingOperations();

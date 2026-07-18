@@ -6,6 +6,7 @@ import 'package:team_workspace/core/error/result.dart';
 import 'package:team_workspace/features/tasks/domain/entities/assigned_user.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task_priority.dart';
+import 'package:team_workspace/features/tasks/domain/entities/task_save_outcome.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task_status.dart';
 import 'package:team_workspace/features/tasks/domain/usecases/create_task_usecase.dart';
 import 'package:team_workspace/features/tasks/domain/usecases/update_task_usecase.dart';
@@ -46,7 +47,7 @@ void main() {
 
   group('create mode (existingTask == null)', () {
     blocTest<TaskFormBloc, TaskFormState>(
-      'calls CreateTaskUseCase and emits [Submitting, SubmitSuccess]',
+      'calls CreateTaskUseCase and emits [Submitting, SubmitSuccess] when synced',
       setUp: () {
         when(
           () => createTask(
@@ -55,7 +56,11 @@ void main() {
             priority: any(named: 'priority'),
             dueDate: any(named: 'dueDate'),
           ),
-        ).thenAnswer((_) async => Ok(existingTask));
+        ).thenAnswer(
+          (_) async => Ok(
+            TaskSaveOutcome(task: existingTask, syncStatus: SyncStatus.synced),
+          ),
+        );
       },
       build: buildBloc,
       act: (bloc) => bloc.add(
@@ -66,10 +71,56 @@ void main() {
           dueDate: DateTime(2026, 2, 1),
         ),
       ),
-      expect: () => [const TaskFormSubmitting(), isA<TaskFormSubmitSuccess>()],
+      expect: () => [
+        const TaskFormSubmitting(),
+        isA<TaskFormSubmitSuccess>().having(
+          (s) => s.isPendingSync,
+          'isPendingSync',
+          isFalse,
+        ),
+      ],
       verify: (_) {
         verifyNever(() => updateTask(any()));
       },
+    );
+
+    blocTest<TaskFormBloc, TaskFormState>(
+      'emits a SubmitSuccess flagged isPendingSync when the remote write is '
+      'only queued (offline or failed)',
+      setUp: () {
+        when(
+          () => createTask(
+            title: any(named: 'title'),
+            description: any(named: 'description'),
+            priority: any(named: 'priority'),
+            dueDate: any(named: 'dueDate'),
+          ),
+        ).thenAnswer(
+          (_) async => Ok(
+            TaskSaveOutcome(
+              task: existingTask,
+              syncStatus: SyncStatus.pendingSync,
+            ),
+          ),
+        );
+      },
+      build: buildBloc,
+      act: (bloc) => bloc.add(
+        TaskFormSubmitted(
+          title: 'New task',
+          description: 'New description',
+          priority: TaskPriority.high,
+          dueDate: DateTime(2026, 2, 1),
+        ),
+      ),
+      expect: () => [
+        const TaskFormSubmitting(),
+        isA<TaskFormSubmitSuccess>().having(
+          (s) => s.isPendingSync,
+          'isPendingSync',
+          isTrue,
+        ),
+      ],
     );
 
     blocTest<TaskFormBloc, TaskFormState>(
@@ -101,7 +152,11 @@ void main() {
     blocTest<TaskFormBloc, TaskFormState>(
       'calls UpdateTaskUseCase with the merged task and never touches create',
       setUp: () {
-        when(() => updateTask(any())).thenAnswer((_) async => Ok(existingTask));
+        when(() => updateTask(any())).thenAnswer(
+          (_) async => Ok(
+            TaskSaveOutcome(task: existingTask, syncStatus: SyncStatus.synced),
+          ),
+        );
       },
       build: buildBloc,
       act: (bloc) => bloc.add(

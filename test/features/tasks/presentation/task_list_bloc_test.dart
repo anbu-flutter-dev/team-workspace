@@ -178,6 +178,77 @@ void main() {
         verifyNever(() => getTasks(page: 2));
       },
     );
+
+    test('a second overlapping next-page request is dropped instead of '
+        'double-fetching — regression: the bloc processes same-type events '
+        'concurrently by default, so back-to-back scroll-triggered requests '
+        'could both pass the hasMore check before either finished', () async {
+      when(() => getTasks(page: 1)).thenAnswer(
+        (_) async => Ok(
+          TaskPage(tasks: [_task('1')], hasMore: true, isFromCache: false),
+        ),
+      );
+      when(() => getTasks(page: 2)).thenAnswer((_) async {
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        return Ok(
+          TaskPage(tasks: [_task('2')], hasMore: false, isFromCache: false),
+        );
+      });
+
+      final bloc = buildBloc();
+      bloc.add(const TaskListStarted());
+      await bloc.stream.firstWhere((s) => s is TaskListLoadSuccess);
+
+      bloc.add(const TaskListNextPageRequested());
+      bloc.add(const TaskListNextPageRequested());
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      verify(() => getTasks(page: 2)).called(1);
+      final state = bloc.state as TaskListLoadSuccess;
+      expect(state.tasks.map((t) => t.id).toList(), ['1', '2']);
+      expect(state.currentPage, 2);
+
+      await bloc.close();
+    });
+
+    test('a next-page result is dropped if a refresh reset the list while it '
+        'was still in flight — regression: appending onto a `current` '
+        'snapshot captured before the await silently clobbered the freshly '
+        'refreshed list with a page appended onto stale data', () async {
+      var page1CallCount = 0;
+      when(() => getTasks(page: 1)).thenAnswer((_) async {
+        page1CallCount++;
+        final isFirstCall = page1CallCount == 1;
+        return Ok(
+          TaskPage(
+            tasks: [_task(isFirstCall ? '1' : '3')],
+            hasMore: isFirstCall,
+            isFromCache: false,
+          ),
+        );
+      });
+      when(() => getTasks(page: 2)).thenAnswer((_) async {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        return Ok(
+          TaskPage(tasks: [_task('2')], hasMore: false, isFromCache: false),
+        );
+      });
+
+      final bloc = buildBloc();
+      bloc.add(const TaskListStarted());
+      await bloc.stream.firstWhere((s) => s is TaskListLoadSuccess);
+
+      bloc.add(const TaskListNextPageRequested());
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      bloc.add(const TaskListRefreshRequested());
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      final state = bloc.state as TaskListLoadSuccess;
+      expect(state.tasks.map((t) => t.id).toList(), ['3']);
+      expect(state.currentPage, 1);
+
+      await bloc.close();
+    });
   });
 
   group('TaskListRefreshRequested', () {

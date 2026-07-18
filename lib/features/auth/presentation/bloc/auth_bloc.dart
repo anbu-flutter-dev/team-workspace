@@ -70,7 +70,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AuthSignOutRequested event,
     Emitter<AuthState> emit,
   ) async {
-    await _signOut();
-    _analytics.logEvent('sign_out');
+    // Capture the pre-signout state so a failed sign-out can revert to it —
+    // the user is still authenticated if this fails, and should stay that
+    // way rather than silently ending up on an unauthenticated screen.
+    final previous = state;
+    final result = await _signOut();
+    result.fold((failure) {
+      emit(AuthSubmissionFailure(failure.message));
+      emit(previous);
+    }, (_) => _analytics.logEvent('sign_out'));
   }
 }

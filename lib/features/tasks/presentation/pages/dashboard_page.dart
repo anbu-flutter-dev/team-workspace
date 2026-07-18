@@ -6,6 +6,7 @@ import 'package:team_workspace/core/router/app_routes.dart';
 import 'package:team_workspace/core/theme/theme_cubit.dart';
 import 'package:team_workspace/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:team_workspace/features/auth/presentation/bloc/auth_event.dart';
+import 'package:team_workspace/features/auth/presentation/bloc/auth_state.dart';
 import 'package:team_workspace/features/tasks/presentation/bloc/task_list_bloc.dart';
 import 'package:team_workspace/features/tasks/presentation/bloc/task_list_event.dart';
 import 'package:team_workspace/features/tasks/presentation/bloc/task_list_state.dart';
@@ -102,82 +103,92 @@ class _DashboardViewState extends State<_DashboardView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dashboard'),
-        actions: [
-          BlocBuilder<ThemeCubit, ThemeMode>(
-            builder: (context, themeMode) {
-              return PopupMenuButton<_DashboardMenuAction>(
-                icon: const Icon(Icons.more_vert_rounded),
-                tooltip: 'More options',
-                onSelected: (action) => _handleMenuAction(context, action),
-                itemBuilder: (context) => [
-                  const PopupMenuItem(enabled: false, child: Text('Theme')),
-                  CheckedPopupMenuItem(
-                    value: _DashboardMenuAction.themeLight,
-                    checked: themeMode == ThemeMode.light,
-                    child: const Text('Light'),
-                  ),
-                  CheckedPopupMenuItem(
-                    value: _DashboardMenuAction.themeDark,
-                    checked: themeMode == ThemeMode.dark,
-                    child: const Text('Dark'),
-                  ),
-                  CheckedPopupMenuItem(
-                    value: _DashboardMenuAction.themeSystem,
-                    checked: themeMode == ThemeMode.system,
-                    child: const Text('System'),
-                  ),
-                  const PopupMenuDivider(),
-                  PopupMenuItem(
-                    value: _DashboardMenuAction.logout,
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(
-                        Icons.logout_rounded,
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                      title: Text(
-                        'Log out',
-                        style: TextStyle(
+    return BlocListener<AuthBloc, AuthState>(
+      listenWhen: (previous, current) => current is AuthSubmissionFailure,
+      listener: (context, state) {
+        if (state is AuthSubmissionFailure) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Sign out failed: ${state.message}')),
+          );
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Dashboard'),
+          actions: [
+            BlocBuilder<ThemeCubit, ThemeMode>(
+              builder: (context, themeMode) {
+                return PopupMenuButton<_DashboardMenuAction>(
+                  icon: const Icon(Icons.more_vert_rounded),
+                  tooltip: 'More options',
+                  onSelected: (action) => _handleMenuAction(context, action),
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(enabled: false, child: Text('Theme')),
+                    CheckedPopupMenuItem(
+                      value: _DashboardMenuAction.themeLight,
+                      checked: themeMode == ThemeMode.light,
+                      child: const Text('Light'),
+                    ),
+                    CheckedPopupMenuItem(
+                      value: _DashboardMenuAction.themeDark,
+                      checked: themeMode == ThemeMode.dark,
+                      child: const Text('Dark'),
+                    ),
+                    CheckedPopupMenuItem(
+                      value: _DashboardMenuAction.themeSystem,
+                      checked: themeMode == ThemeMode.system,
+                      child: const Text('System'),
+                    ),
+                    const PopupMenuDivider(),
+                    PopupMenuItem(
+                      value: _DashboardMenuAction.logout,
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(
+                          Icons.logout_rounded,
                           color: Theme.of(context).colorScheme.error,
+                        ),
+                        title: Text(
+                          'Log out',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              );
-            },
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push(AppRoutes.createTask),
-        icon: const Icon(Icons.add),
-        label: const Text('New task'),
-      ),
-      body: BlocBuilder<TaskListBloc, TaskListState>(
-        builder: (context, state) {
-          return switch (state) {
-            TaskListLoading() => const Center(
-              child: CircularProgressIndicator(),
+                  ],
+                );
+              },
             ),
-            TaskListLoadFailure(:final message) => _StateMessage(
-              icon: Icons.error_outline_rounded,
-              iconColor: Theme.of(context).colorScheme.error,
-              message: message,
-              actionLabel: 'Retry',
-              onAction: () =>
-                  context.read<TaskListBloc>().add(const TaskListStarted()),
-            ),
-            TaskListLoadSuccess() => _TaskListView(
-              state: state,
-              scrollController: _scrollController,
-            ),
-          };
-        },
+            const SizedBox(width: 4),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () => context.push(AppRoutes.createTask),
+          icon: const Icon(Icons.add),
+          label: const Text('New task'),
+        ),
+        body: BlocBuilder<TaskListBloc, TaskListState>(
+          builder: (context, state) {
+            return switch (state) {
+              TaskListLoading() => const Center(
+                child: CircularProgressIndicator(),
+              ),
+              TaskListLoadFailure(:final message) => _StateMessage(
+                icon: Icons.error_outline_rounded,
+                iconColor: Theme.of(context).colorScheme.error,
+                message: message,
+                actionLabel: 'Retry',
+                onAction: () =>
+                    context.read<TaskListBloc>().add(const TaskListStarted()),
+              ),
+              TaskListLoadSuccess() => _TaskListView(
+                state: state,
+                scrollController: _scrollController,
+              ),
+            };
+          },
+        ),
       ),
     );
   }

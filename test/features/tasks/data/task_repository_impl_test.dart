@@ -14,6 +14,7 @@ import 'package:team_workspace/features/tasks/data/repositories/task_repository_
 import 'package:team_workspace/features/tasks/domain/entities/assigned_user.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task_priority.dart';
+import 'package:team_workspace/features/tasks/domain/entities/task_save_outcome.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task_status.dart';
 
 class MockTaskRemoteDataSource extends Mock implements TaskRemoteDataSource {}
@@ -181,13 +182,14 @@ void main() {
 
   group('offline queue', () {
     test(
-      'createTask enqueues for retry instead of calling remote when offline',
+      'createTask enqueues for retry instead of calling remote when offline, '
+      'and flags the outcome as pendingSync',
       () async {
         when(
           () => connectivity.checkConnectivity(),
         ).thenAnswer((_) async => [ConnectivityResult.none]);
 
-        await repository.createTask(
+        final result = await repository.createTask(
           title: 'Offline task',
           description: 'desc',
           priority: TaskPriority.low,
@@ -201,10 +203,15 @@ void main() {
           ),
         );
         verify(() => pendingSync.add(any())).called(1);
+        final outcome = result.fold((_) => null, (o) => o);
+        expect(outcome, isNotNull);
+        expect(outcome!.syncStatus, SyncStatus.pendingSync);
+        expect(outcome.isPendingSync, isTrue);
       },
     );
 
-    test('createTask calls remote directly when online', () async {
+    test('createTask calls remote directly when online, and flags the outcome '
+        'as synced', () async {
       when(
         () => connectivity.checkConnectivity(),
       ).thenAnswer((_) async => [ConnectivityResult.wifi]);
@@ -215,7 +222,7 @@ void main() {
         ),
       ).thenAnswer((_) async {});
 
-      await repository.createTask(
+      final result = await repository.createTask(
         title: 'Online task',
         description: 'desc',
         priority: TaskPriority.low,
@@ -229,27 +236,60 @@ void main() {
         ),
       ).called(1);
       verifyNever(() => pendingSync.add(any()));
+      final outcome = result.fold((_) => null, (o) => o);
+      expect(outcome, isNotNull);
+      expect(outcome!.syncStatus, SyncStatus.synced);
+      expect(outcome.isPendingSync, isFalse);
     });
 
     test(
-      'updateTask never calls remote for a local-only (unsynced) task',
+      'createTask queues for retry and flags pendingSync when the remote '
+      'call fails while online — the write must not look fully synced',
       () async {
         when(
           () => connectivity.checkConnectivity(),
         ).thenAnswer((_) async => [ConnectivityResult.wifi]);
-
-        await repository.updateTask(_overlayTask('local_999'));
-
-        verifyNever(
-          () => remote.updateTask(
-            any(),
+        when(
+          () => remote.createTask(
             todo: any(named: 'todo'),
             completed: any(named: 'completed'),
           ),
+        ).thenThrow(Exception('boom'));
+
+        final result = await repository.createTask(
+          title: 'Flaky task',
+          description: 'desc',
+          priority: TaskPriority.low,
+          dueDate: DateTime(2026, 1, 1),
         );
-        verifyNever(() => pendingSync.add(any()));
+
+        verify(() => pendingSync.add(any())).called(1);
+        final outcome = result.fold((_) => null, (o) => o);
+        expect(outcome, isNotNull);
+        expect(outcome!.syncStatus, SyncStatus.pendingSync);
       },
     );
+
+    test('updateTask never calls remote for a local-only (unsynced) task, and '
+        'flags the outcome as pendingSync', () async {
+      when(
+        () => connectivity.checkConnectivity(),
+      ).thenAnswer((_) async => [ConnectivityResult.wifi]);
+
+      final result = await repository.updateTask(_overlayTask('local_999'));
+
+      verifyNever(
+        () => remote.updateTask(
+          any(),
+          todo: any(named: 'todo'),
+          completed: any(named: 'completed'),
+        ),
+      );
+      verifyNever(() => pendingSync.add(any()));
+      final outcome = result.fold((_) => null, (o) => o);
+      expect(outcome, isNotNull);
+      expect(outcome!.syncStatus, SyncStatus.pendingSync);
+    });
 
     test(
       'syncPendingOperations replays queued ids and clears them on success',

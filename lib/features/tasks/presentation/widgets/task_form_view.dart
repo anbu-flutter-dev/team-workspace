@@ -110,11 +110,12 @@ class _TaskFormBodyState extends State<_TaskFormBody> {
       body: BlocListener<TaskFormBloc, TaskFormState>(
         listener: (context, state) {
           if (state is TaskFormSubmitSuccess) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(_isEditMode ? 'Task updated' : 'Task created'),
-              ),
-            );
+            final message = state.isPendingSync
+                ? 'Saved locally. Will sync when online.'
+                : (_isEditMode ? 'Task updated' : 'Task created');
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(message)));
             context.pop();
           } else if (state is TaskFormSubmitFailure) {
             ScaffoldMessenger.of(context).showSnackBar(

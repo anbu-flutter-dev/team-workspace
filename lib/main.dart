@@ -8,7 +8,6 @@ import 'package:team_workspace/core/router/app_router.dart';
 import 'package:team_workspace/core/theme/app_theme.dart';
 import 'package:team_workspace/core/theme/theme_cubit.dart';
 import 'package:team_workspace/features/auth/presentation/bloc/auth_bloc.dart';
-import 'package:team_workspace/features/auth/presentation/bloc/auth_event.dart';
 import 'package:team_workspace/firebase_options.dart';
 
 Future<void> main() async {
@@ -26,10 +25,12 @@ class TeamWorkspaceApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider(
-          create: (_) =>
-              getIt<AuthBloc>()..add(const AuthSubscriptionRequested()),
-        ),
+        // .value, not (create:) — AuthBloc is a GetIt lazy singleton that
+        // outlives this widget, so BlocProvider must not take ownership of
+        // closing it. A `create:` callback would do exactly that on
+        // disposal (e.g. hot reload rebuilding this widget), leaving GetIt
+        // still holding onto — and handing out — a closed bloc afterwards.
+        BlocProvider<AuthBloc>.value(value: getIt<AuthBloc>()),
         BlocProvider(create: (_) => getIt<ThemeCubit>()),
       ],
       child: Builder(

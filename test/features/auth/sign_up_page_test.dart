@@ -85,8 +85,8 @@ void main() {
       await fillFields(
         tester,
         email: 'user@example.com',
-        password: 'password123',
-        confirmPassword: 'password123',
+        password: 'Passw0rd!',
+        confirmPassword: 'Passw0rd!',
       );
       await tester.tap(find.text('Sign up'));
       await tester.pump();
@@ -95,7 +95,7 @@ void main() {
         () => authBloc.add(
           const AuthSignUpSubmitted(
             email: 'user@example.com',
-            password: 'password123',
+            password: 'Passw0rd!',
           ),
         ),
       ).called(1);

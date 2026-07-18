@@ -15,6 +15,7 @@ import 'package:team_workspace/features/tasks/data/models/task_dto_mapper.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task_page.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task_priority.dart';
+import 'package:team_workspace/features/tasks/domain/entities/task_save_outcome.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task_status.dart';
 import 'package:team_workspace/features/tasks/domain/repositories/task_repository.dart';
 import 'package:team_workspace/features/tasks/domain/task_enrichment.dart';
@@ -138,7 +139,7 @@ class TaskRepositoryImpl implements TaskRepository {
   }
 
   @override
-  Future<Result<Task>> createTask({
+  Future<Result<TaskSaveOutcome>> createTask({
     required String title,
     required String description,
     required TaskPriority priority,
@@ -160,16 +161,16 @@ class TaskRepositoryImpl implements TaskRepository {
     );
     result.fold(
       (_) {},
-      (created) => _analytics.logEvent(
+      (outcome) => _analytics.logEvent(
         'task_created',
-        parameters: {'priority': created.priority.name},
+        parameters: {'priority': outcome.task.priority.name},
       ),
     );
     return result;
   }
 
   @override
-  Future<Result<Task>> updateTask(Task task) async {
+  Future<Result<TaskSaveOutcome>> updateTask(Task task) async {
     // A task that's never synced yet has no numeric id for the API to look
     // up — its only remote call left is the create it's still waiting on.
     final remoteCall = task.isLocalOnly
@@ -185,9 +186,9 @@ class TaskRepositoryImpl implements TaskRepository {
     );
     result.fold(
       (_) {},
-      (updated) => _analytics.logEvent(
+      (outcome) => _analytics.logEvent(
         'task_updated',
-        parameters: {'status': updated.status.name},
+        parameters: {'status': outcome.task.status.name},
       ),
     );
     return result;
@@ -198,8 +199,11 @@ class TaskRepositoryImpl implements TaskRepository {
   /// point of view — then best-effort tell the real API. Offline, or a
   /// failed call, queues the id for [syncPendingOperations] instead of
   /// surfacing an error, since dummyjson wouldn't have kept the write
-  /// anyway; only a failed *local* save is a real failure.
-  Future<Result<Task>> _saveLocallyThenSyncRemote(
+  /// anyway; only a failed *local* save is a real failure. Either way the
+  /// caller gets back a [TaskSaveOutcome] saying whether the remote actually
+  /// heard about this write, so the UI can tell "saved" from "saved, will
+  /// sync when online" instead of treating both as identical successes.
+  Future<Result<TaskSaveOutcome>> _saveLocallyThenSyncRemote(
     Task task, {
     required Future<void> Function()? remoteCall,
   }) async {
@@ -210,19 +214,29 @@ class TaskRepositoryImpl implements TaskRepository {
     }
     _taskUpdatesController.add(task);
 
-    if (remoteCall != null) {
-      if (await _checkIsOnline()) {
-        try {
-          await remoteCall();
-        } on Exception catch (e) {
-          log('remote write failed, queuing for retry', error: e);
-          await _pendingSync.add(task.id);
-        }
-      } else {
+    if (remoteCall == null) {
+      // No remote call was even attempted for this write (e.g. a local-only
+      // task with no server id yet) — the server hasn't heard about it.
+      return Ok(
+        TaskSaveOutcome(task: task, syncStatus: SyncStatus.pendingSync),
+      );
+    }
+
+    if (await _checkIsOnline()) {
+      try {
+        await remoteCall();
+        return Ok(TaskSaveOutcome(task: task, syncStatus: SyncStatus.synced));
+      } on Exception catch (e) {
+        log('remote write failed, queuing for retry', error: e);
         await _pendingSync.add(task.id);
+        return Ok(
+          TaskSaveOutcome(task: task, syncStatus: SyncStatus.pendingSync),
+        );
       }
     }
-    return Ok(task);
+
+    await _pendingSync.add(task.id);
+    return Ok(TaskSaveOutcome(task: task, syncStatus: SyncStatus.pendingSync));
   }
 
   @override
