@@ -11,8 +11,6 @@ import 'package:team_workspace/features/tasks/presentation/bloc/task_form_bloc.d
 import 'package:team_workspace/features/tasks/presentation/bloc/task_form_event.dart';
 import 'package:team_workspace/features/tasks/presentation/bloc/task_form_state.dart';
 
-/// Shared by create and edit — pass `initialTask` to switch into edit mode
-/// (pre-populated fields plus a status picker).
 class TaskFormView extends StatelessWidget {
   const TaskFormView({super.key, this.initialTask});
 

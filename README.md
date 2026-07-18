@@ -1,16 +1,16 @@
 # Team Workspace
 
-A task management app built for a Flutter machine test. Email/password auth via
-Firebase, a paginated task dashboard backed by [dummyjson.com](https://dummyjson.com/todos),
-offline-first writes with an explicit sync-status signal, pull-to-refresh,
-search/filter, and light/dark/system theme switching.
+A task management app I built for a Flutter machine test. Email/password login
+through Firebase, a paginated task dashboard backed by
+[dummyjson.com](https://dummyjson.com/todos), offline-first writes with a
+sync-status indicator, pull-to-refresh, search/filter, and a light/dark/system
+theme switch.
 
 ## Setup instructions
 
 ### Prerequisites
 
-- Flutter SDK — built against Flutter `3.44.6`;
-- A Firebase project (for email/password auth)
+- Flutter SDK — built against Flutter `3.44.6`
 
 ### 1. Install dependencies
 
@@ -18,61 +18,12 @@ search/filter, and light/dark/system theme switching.
 flutter pub get
 ```
 
-### 2. Firebase (manual step)
-
-This repo does not include `lib/firebase_options.dart`, `android/app/google-services.json`,
-or `ios/Runner/GoogleService-Info.plist` — they're gitignored because they're
-per-Firebase-project. To run the app for real:
-
-1. Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com).
-2. Enable **Authentication → Sign-in method → Email/Password**.
-3. Install the FlutterFire CLI if you don't have it: `dart pub global activate flutterfire_cli`.
-4. From the project root, run:
-   ```bash
-   flutterfire configure
-   ```
-   This generates `lib/firebase_options.dart` and the platform config files, and
-   registers Android/iOS apps against your Firebase project.
-5. Run the app: `flutter run`.
-
-If you just want to `analyze`/`test`/`build` without a real Firebase project,
-copy the placeholder instead:
-
-```bash
-cp lib/firebase_options.sample.dart lib/firebase_options.dart
-```
-
-The placeholder has fake credentials — auth calls will fail at runtime, but
-the app compiles and the widget/bloc test suite doesn't touch real Firebase.
-
-### 3. Generate code
-
-`*.g.dart` files (json_serializable output) are gitignored — generate them with:
-
-```bash
-dart run build_runner build --delete-conflicting-outputs
-```
-
-### 4. Run
-
-```bash
-flutter run
-```
-
-### 5. Test
-
-```bash
-flutter test
-flutter analyze
-```
-
 ## Architecture overview
 
-Feature-first Clean Architecture. Domain layer is pure Dart — no Flutter, Dio,
-Firebase, Hive, or JSON-serialization imports. Repositories return a hand-rolled
-`Result<T>` (`Ok`/`Err`) rather than pulling in `dartz` for one type. DI is
-hand-written (`lib/core/di/injection.dart`, one `configureDependencies()`
-function using `get_it` directly) — no `freezed`/`injectable` codegen.
+This follows a fairly standard feature-first Clean Architecture. The domain
+layer is plain Dart, no Flutter, Dio, Firebase, Hive, or JSON imports, so it's
+easy to test on its own. Repositories return a small hand-rolled `Result<T>`
+(`Ok`/`Err`) instead of pulling in `dartz` just for one type.
 
 ```
 lib/
@@ -105,60 +56,56 @@ test/
   features/tasks/presentation/      # TaskListBloc, TaskFormBloc, TaskFormView, dashboard states
 ```
 
-Domain entities (`Task`, `AssignedUser`) have no serialization coupling —
-`@JsonSerializable` only exists on data-layer models (`TaskModel`,
-`AssignedUserModel`, `TaskDto`), which convert to/from the entities at the
-boundary. Hive persistence (overlay, cache, offline write queue) and dummyjson
-API responses both go through this data layer; the domain layer and blocs
-only ever see `Task`.
+One thing worth pointing out: the domain entities (`Task`, `AssignedUser`)
+don't know anything about JSON. `@JsonSerializable` only shows up on the
+data-layer models (`TaskModel`, `AssignedUserModel`, `TaskDto`), which handle
+converting from the entities. Both Hive persistence and the dummyjson
+API responses go through that data layer, so the blocs and everything above
+them only ever deal with a plain `Task`.
 
 ## Packages used
 
+Here's what's in `pubspec.yaml` and why:
+
 | Package | Why |
 |---|---|
-| `flutter_bloc` | State management — one bloc per screen concern, explicit loading/success/failure states |
-| `equatable` | Value equality for bloc events/states without boilerplate `==`/`hashCode` |
-| `get_it` | Service locator — registered by hand in `injection.dart`, no `injectable` codegen |
-| `dio` | HTTP client for the dummyjson REST API |
-| `hive_ce` + `hive_ce_flutter` | Local persistence — overlay, cache, offline write queue, and theme-mode settings. `_ce` fork because upstream `hive` is unmaintained |
-| `json_annotation` | `@JsonSerializable()` codegen for `toJson`/`fromJson` on data-layer models and DTOs only — never on domain entities |
-| `go_router` | Declarative navigation with an auth-aware `redirect` and a screen-view route observer |
+| `flutter_bloc` | State management, one bloc per screen with explicit loading/success/failure states |
+| `equatable` | Saves writing `==`/`hashCode` by hand for bloc events and states |
+| `get_it` | Simple service locator, wired up in `injection.dart` |
+| `dio` | HTTP client for the dummyjson API |
+| `hive_ce` + `hive_ce_flutter` | Local storage for the overlay, cache, offline write queue, and theme setting. Went with the `_ce` fork since the original `hive` package isn't maintained anymore |
+| `json_annotation` | Generates `toJson`/`fromJson` for the data-layer models and DTOs. Domain entities don't use it at all |
+| `go_router` | Declarative routing with an auth-aware redirect and a screen-view observer |
 | `intl` | Date formatting |
-| `connectivity_plus` | Detects online/offline for the write queue |
-| `firebase_core` + `firebase_auth` | Email/password authentication |
-| `logger` (via a thin `log()` wrapper) | No bare `print` in the codebase |
-| `bloc_test` + `mocktail` (dev) | Bloc and repository tests |
-| `build_runner`, `json_serializable` (dev) | Codegen for `toJson`/`fromJson` only — no DI or entity codegen |
+| `connectivity_plus` | Checks online/offline status for the write queue |
+| `firebase_core` + `firebase_auth` | Email/password auth |
+| `logger` | Wrapped in a small `log()` helper so there's no bare `print()` anywhere |
+| `bloc_test` + `mocktail` (dev) | For testing blocs and the repository |
+| `build_runner`, `json_serializable` (dev) | Codegen, only for `toJson`/`fromJson` |
 
 ## Assumptions made
 
-- **Status is three-way (pending/in-progress/completed)** even though
-  dummyjson only has a `completed` boolean — the spec's filter chips need all
-  three, so the third state is derived from `id` (see `task_enrichment.dart`).
-  "Reopen task" always sends a completed task back to `pending`, not whatever
-  in-progress/pending split it had before completion.
-- **`TaskFormBloc` and its form widget are shared** between create and edit;
-  `existingTask == null` is the only branch point. The status picker only
-  renders in edit mode, since create has no meaningful status to pick.
-- **Validate-on-submit**, not validate-as-you-type, on every form in the app
-  (login, sign-up, create/edit task).
-- **Search debounces in the widget itself** (a plain `Timer`, 300ms) rather
-  than via a bloc-level stream transformer.
-- **Remote create/update calls are best-effort** when online — dummyjson
-  doesn't persist them regardless of success/failure, so a failed *live* call
-  is logged and queued for retry rather than surfaced as a user-facing error.
-  Only a failed **local** write (Hive) surfaces as an error. The UI still
-  distinguishes a fully-synced write from a locally-queued one ("Task
-  created" vs. "Saved locally. Will sync when online.") via a `TaskSaveOutcome`
-  returned alongside the task, so a queued write is never reported as a plain
-  success.
-- **Pagination is 10/page** via dummyjson's `limit`/`skip`, matching the spec.
+- **Tasks support three statuses: pending, in progress, and completed.** Since DummyJSON only provides a `completed` boolean, the additional status is derived in `task_enrichment.dart` based on the task ID. When a completed task is reopened, it always goes back to **pending** instead of restoring its previous state.
+
+- **The same `TaskFormBloc` and form UI are used for both creating and editing tasks.** The only distinction is whether `existingTask` is `null`. Because a new task doesn't have a status yet, the status selector is shown only while editing.
+
+- **Form validation happens only when the user submits the form.** This behavior is consistent across login, sign-up, and create/edit task screens instead of validating on every keystroke.
+
+- **Search input is debounced at the widget level** using a simple 300 ms `Timer`. Since the logic is UI-specific, no bloc-level stream transformer is used.
+
+- **Create and update operations are treated as best-effort when online.** DummyJSON doesn't actually persist changes, so if the remote request fails after the task has already been saved locally, the failure is logged and queued for a later retry instead of showing an error to the user. The only time the user sees an error is when the local Hive write fails. The UI still clearly indicates whether the task was fully synced ("Task created") or only stored locally ("Saved locally. Will sync when online.") using the returned `TaskSaveOutcome`.
+
+- **Pagination uses 10 tasks per page**, implemented with DummyJSON's `limit` and `skip` parameters to match the project requirements.
 
 ## Screenshots
-![alt text](Screenshot_1784376136.png)
 
-![alt text](Screenshot_1784376169.png)
+A few screens from the app:
 
-![alt text](Screenshot_1784376178.png)
-
-![alt text](Screenshot_1784377469.png)
+<table>
+  <tr>
+    <td><a href="Screenshot_1784376136.png"><img src="Screenshot_1784376136.png" width="220"></a></td>
+    <td><a href="Screenshot_1784376169.png"><img src="Screenshot_1784376169.png" width="220"></a></td>
+    <td><a href="Screenshot_1784376178.png"><img src="Screenshot_1784376178.png" width="220"></a></td>
+    <td><a href="Screenshot_1784377469.png"><img src="Screenshot_1784377469.png" width="220"></a></td>
+  </tr>
+</table>
