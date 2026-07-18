@@ -19,6 +19,8 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  bool hidePassword = true;
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -34,6 +36,12 @@ class _LoginPageState extends State<LoginPage> {
         password: _passwordController.text,
       ),
     );
+  }
+
+  void togglePassword() {
+    setState(() {
+      hidePassword = !hidePassword;
+    });
   }
 
   @override
@@ -82,11 +90,20 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _passwordController,
-                      obscureText: true,
+                      obscureText: hidePassword,
                       keyboardType: TextInputType.visiblePassword,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Password',
                         prefixIcon: Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          onPressed: togglePassword,
+                          icon: Icon(
+                            hidePassword
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                            size: 20,
+                          ),
+                        ),
                       ),
                       validator: Validators.password,
                     ),

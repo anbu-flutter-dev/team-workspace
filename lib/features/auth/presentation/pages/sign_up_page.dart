@@ -18,6 +18,9 @@ class _SignUpPageState extends State<SignUpPage> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
+  bool hidePassword = true;
+  bool hideConfirmPassword = true;
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -34,6 +37,18 @@ class _SignUpPageState extends State<SignUpPage> {
         password: _passwordController.text,
       ),
     );
+  }
+
+  void togglePassword() {
+    setState(() {
+      hidePassword = !hidePassword;
+    });
+  }
+
+  void toggleConfirmPassword() {
+    setState(() {
+      hideConfirmPassword = !hideConfirmPassword;
+    });
   }
 
   @override
@@ -82,22 +97,40 @@ class _SignUpPageState extends State<SignUpPage> {
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _passwordController,
-                      obscureText: true,
+                      obscureText: hidePassword,
                       keyboardType: TextInputType.visiblePassword,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Password',
                         prefixIcon: Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          onPressed: togglePassword,
+                          icon: Icon(
+                            hidePassword
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                            size: 20,
+                          ),
+                        ),
                       ),
                       validator: Validators.password,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _confirmPasswordController,
-                      obscureText: true,
+                      obscureText: hideConfirmPassword,
                       keyboardType: TextInputType.visiblePassword,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Confirm password',
                         prefixIcon: Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          onPressed: toggleConfirmPassword,
+                          icon: Icon(
+                            hideConfirmPassword
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                            size: 20,
+                          ),
+                        ),
                       ),
                       validator: (value) => Validators.confirmPassword(
                         value,
