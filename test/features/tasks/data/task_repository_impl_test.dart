@@ -270,11 +270,40 @@ void main() {
       },
     );
 
-    test('updateTask never calls remote for a local-only (unsynced) task, and '
-        'flags the outcome as pendingSync', () async {
+    test(
+      'updateTask never calls remote for a local-only (unsynced) task, and '
+      'flags the outcome as synced when its original create is not queued '
+      '— regression: a task whose create already went through kept showing '
+      "'will sync when online' on every later edit, even while online, "
+      'because isLocalOnly alone was being used as a pendingSync signal',
+      () async {
+        when(
+          () => connectivity.checkConnectivity(),
+        ).thenAnswer((_) async => [ConnectivityResult.wifi]);
+        when(() => pendingSync.read()).thenReturn([]);
+
+        final result = await repository.updateTask(_overlayTask('local_999'));
+
+        verifyNever(
+          () => remote.updateTask(
+            any(),
+            todo: any(named: 'todo'),
+            completed: any(named: 'completed'),
+          ),
+        );
+        verifyNever(() => pendingSync.add(any()));
+        final outcome = result.fold((_) => null, (o) => o);
+        expect(outcome, isNotNull);
+        expect(outcome!.syncStatus, SyncStatus.synced);
+      },
+    );
+
+    test('updateTask flags a local-only task as pendingSync when its original '
+        'create is still queued for retry', () async {
       when(
         () => connectivity.checkConnectivity(),
       ).thenAnswer((_) async => [ConnectivityResult.wifi]);
+      when(() => pendingSync.read()).thenReturn(['local_999']);
 
       final result = await repository.updateTask(_overlayTask('local_999'));
 

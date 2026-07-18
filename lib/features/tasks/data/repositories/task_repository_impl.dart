@@ -215,10 +215,21 @@ class TaskRepositoryImpl implements TaskRepository {
     _taskUpdatesController.add(task);
 
     if (remoteCall == null) {
-      // No remote call was even attempted for this write (e.g. a local-only
-      // task with no server id yet) — the server hasn't heard about it.
+      // A local-only task has no numeric id to call the update endpoint
+      // with — but that doesn't by itself mean anything is pending. If its
+      // original create already went through (or there was never anything
+      // queued for it), the overlay is as synced as it's ever going to be,
+      // and flagging every subsequent edit as "pending" would be wrong even
+      // while online. Only flag pendingSync if the create is genuinely
+      // still queued, waiting for syncPendingOperations to replay it.
+      final isCreateStillQueued = _pendingSync.read().contains(task.id);
       return Ok(
-        TaskSaveOutcome(task: task, syncStatus: SyncStatus.pendingSync),
+        TaskSaveOutcome(
+          task: task,
+          syncStatus: isCreateStillQueued
+              ? SyncStatus.pendingSync
+              : SyncStatus.synced,
+        ),
       );
     }
 
