@@ -25,18 +25,11 @@ class TeamWorkspaceApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        // .value, not (create:) — AuthBloc is a GetIt lazy singleton that
-        // outlives this widget, so BlocProvider must not take ownership of
-        // closing it. A `create:` callback would do exactly that on
-        // disposal (e.g. hot reload rebuilding this widget), leaving GetIt
-        // still holding onto — and handing out — a closed bloc afterwards.
         BlocProvider<AuthBloc>.value(value: getIt<AuthBloc>()),
         BlocProvider(create: (_) => getIt<ThemeCubit>()),
       ],
       child: Builder(
         builder: (context) {
-          // Built once here (not inside the BlocBuilder below) so a theme
-          // change never recreates the router and loses navigation state.
           final router = buildAppRouter(
             context.read<AuthBloc>(),
             getIt<AnalyticsService>(),
