@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:team_workspace/core/di/injection.dart';
 import 'package:team_workspace/core/utils/date_formatter.dart';
+import 'package:team_workspace/core/utils/validators.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task_priority.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task_status.dart';
@@ -65,15 +66,32 @@ class _TaskFormBodyState extends State<_TaskFormBody> {
     super.dispose();
   }
 
+  static DateTime _startOfToday() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
   Future<void> _pickDueDate() async {
-    final today = DateTime.now();
+    final today = _startOfToday();
     final picked = await showDatePicker(
       context: context,
       initialDate: _dueDate.isBefore(today) ? today : _dueDate,
-      firstDate: DateTime(today.year, today.month, today.day),
+      firstDate: today,
       lastDate: today.add(const Duration(days: 730)),
     );
     if (picked != null) setState(() => _dueDate = picked);
+  }
+
+  /// Ignores the FormField's own tracked value and reads `_dueDate` directly
+  /// — the date picker already keeps that in sync via setState, so there's
+  /// no need to duplicate that state inside the field itself. This is what
+  /// lets Form.validate() actually enforce "today or later" on submit,
+  /// instead of relying solely on the picker's firstDate to prevent it.
+  String? _validateDueDate(DateTime? _) {
+    if (_dueDate.isBefore(_startOfToday())) {
+      return 'Due date must be today or later';
+    }
+    return null;
   }
 
   void _submit() {
@@ -123,26 +141,18 @@ class _TaskFormBodyState extends State<_TaskFormBody> {
                   controller: _titleController,
                   maxLength: 100,
                   decoration: const InputDecoration(labelText: 'Title'),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Title is required';
-                    }
-                    if (value.length > 100) {
-                      return 'Title must be 100 characters or fewer';
-                    }
-                    return null;
-                  },
+                  validator: (value) => Validators.required(
+                    value,
+                    fieldName: 'Title',
+                    maxLength: 100,
+                  ),
                 ),
                 TextFormField(
                   controller: _descriptionController,
                   decoration: const InputDecoration(labelText: 'Description'),
                   maxLines: 4,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Description is required';
-                    }
-                    return null;
-                  },
+                  validator: (value) =>
+                      Validators.required(value, fieldName: 'Description'),
                 ),
                 const SizedBox(height: 16),
                 Text('Priority', style: Theme.of(context).textTheme.titleSmall),
@@ -190,10 +200,32 @@ class _TaskFormBodyState extends State<_TaskFormBody> {
                 const SizedBox(height: 16),
                 Text('Due date', style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: _pickDueDate,
-                  icon: const Icon(Icons.event),
-                  label: Text(DateFormatter.dueDate(_dueDate)),
+                FormField<DateTime>(
+                  initialValue: _dueDate,
+                  validator: _validateDueDate,
+                  builder: (field) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: _pickDueDate,
+                          icon: const Icon(Icons.event),
+                          label: Text(DateFormatter.dueDate(_dueDate)),
+                        ),
+                        if (field.hasError)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8, left: 4),
+                            child: Text(
+                              field.errorText!,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 28),
                 BlocBuilder<TaskFormBloc, TaskFormState>(

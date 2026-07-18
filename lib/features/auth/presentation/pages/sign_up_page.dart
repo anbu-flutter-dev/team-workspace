@@ -16,11 +16,13 @@ class _SignUpPageState extends State<SignUpPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -69,6 +71,18 @@ class _SignUpPageState extends State<SignUpPage> {
                       obscureText: true,
                       decoration: const InputDecoration(labelText: 'Password'),
                       validator: Validators.password,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _confirmPasswordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Confirm password',
+                      ),
+                      validator: (value) => Validators.confirmPassword(
+                        value,
+                        _passwordController.text,
+                      ),
                     ),
                     const SizedBox(height: 24),
                     BlocBuilder<AuthBloc, AuthState>(
