@@ -1,6 +1,7 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:team_workspace/core/analytics/analytics_service.dart';
 import 'package:team_workspace/core/error/exceptions.dart';
 import 'package:team_workspace/core/error/failure.dart';
 import 'package:team_workspace/core/error/result.dart';
@@ -25,6 +26,8 @@ class MockPendingSyncStore extends Mock implements PendingSyncStore {}
 
 class MockConnectivity extends Mock implements Connectivity {}
 
+class MockAnalyticsService extends Mock implements AnalyticsService {}
+
 Task _overlayTask(String id, {String title = 'Overlay title'}) => Task(
   id: id,
   title: title,
@@ -41,6 +44,7 @@ void main() {
   late MockTaskCacheStore cache;
   late MockPendingSyncStore pendingSync;
   late MockConnectivity connectivity;
+  late MockAnalyticsService analytics;
   late TaskRepositoryImpl repository;
 
   setUpAll(() {
@@ -53,6 +57,7 @@ void main() {
     cache = MockTaskCacheStore();
     pendingSync = MockPendingSyncStore();
     connectivity = MockConnectivity();
+    analytics = MockAnalyticsService();
     when(
       () => connectivity.onConnectivityChanged,
     ).thenAnswer((_) => const Stream.empty());
@@ -60,12 +65,16 @@ void main() {
     when(() => cache.write(any())).thenAnswer((_) async {});
     when(() => pendingSync.add(any())).thenAnswer((_) async {});
     when(() => pendingSync.remove(any())).thenAnswer((_) async {});
+    when(
+      () => analytics.logEvent(any(), parameters: any(named: 'parameters')),
+    ).thenReturn(null);
     repository = TaskRepositoryImpl(
       remote,
       overlay,
       cache,
       pendingSync,
       connectivity,
+      analytics,
     );
   });
 

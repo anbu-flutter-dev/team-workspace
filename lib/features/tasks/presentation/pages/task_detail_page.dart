@@ -32,7 +32,7 @@ class _TaskDetailView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Task'),
+        title: const Text('Task details'),
         actions: [
           BlocBuilder<TaskDetailBloc, TaskDetailState>(
             builder: (context, state) {
@@ -41,11 +41,13 @@ class _TaskDetailView extends StatelessWidget {
               }
               return IconButton(
                 icon: const Icon(Icons.edit_outlined),
+                tooltip: 'Edit task',
                 onPressed: () =>
                     context.push(AppRoutes.editTaskPath(state.task.id)),
               );
             },
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: BlocConsumer<TaskDetailBloc, TaskDetailState>(
@@ -86,6 +88,7 @@ class _TaskDetailBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -93,42 +96,89 @@ class _TaskDetailBody extends StatelessWidget {
         children: [
           Text(task.title, style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 12),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               PriorityChip(priority: task.priority),
-              const SizedBox(width: 8),
               StatusChip(status: task.status),
             ],
           ),
-          const SizedBox(height: 20),
-          Text('Description', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 6),
-          Text(task.description, style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height: 20),
-          _DetailRow(
-            icon: Icons.event,
-            label: 'Due date',
-            value: DateFormatter.dueDate(task.dueDate),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              CircleAvatar(radius: 16, child: Text(task.assignedUser.initial)),
-              const SizedBox(width: 12),
-              Text(
-                task.assignedUser.name,
-                style: Theme.of(context).textTheme.bodyMedium,
+          const SizedBox(height: 24),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Description',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    task.description,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Divider(),
+                  ),
+                  _DetailRow(
+                    icon: Icons.event_outlined,
+                    label: 'Due date',
+                    value: DateFormatter.dueDate(task.dueDate),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.person_outline_rounded,
+                        size: 18,
+                        color: colorScheme.outline,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Assigned to: ',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(width: 4),
+                      CircleAvatar(
+                        radius: 12,
+                        backgroundColor: colorScheme.primaryContainer,
+                        child: Text(
+                          task.assignedUser.initial,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: colorScheme.onPrimaryContainer,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        task.assignedUser.name,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
           const SizedBox(height: 28),
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton(
+            child: ElevatedButton.icon(
               onPressed: () => context.read<TaskDetailBloc>().add(
                 const TaskDetailToggleStatusRequested(),
               ),
-              child: Text(
+              icon: Icon(
+                task.isCompleted ? Icons.replay_rounded : Icons.check_rounded,
+              ),
+              label: Text(
                 task.isCompleted ? 'Reopen task' : 'Mark as completed',
               ),
             ),

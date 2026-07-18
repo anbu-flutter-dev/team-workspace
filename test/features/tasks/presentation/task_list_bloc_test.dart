@@ -1,6 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:team_workspace/core/analytics/analytics_service.dart';
 import 'package:team_workspace/core/error/failure.dart';
 import 'package:team_workspace/core/error/result.dart';
 import 'package:team_workspace/features/tasks/domain/entities/assigned_user.dart';
@@ -18,6 +19,8 @@ class MockGetTasksUseCase extends Mock implements GetTasksUseCase {}
 
 class MockTaskRepository extends Mock implements TaskRepository {}
 
+class MockAnalyticsService extends Mock implements AnalyticsService {}
+
 Task _task(String id) => Task(
   id: id,
   title: 'Task $id',
@@ -31,15 +34,20 @@ Task _task(String id) => Task(
 void main() {
   late MockGetTasksUseCase getTasks;
   late MockTaskRepository repository;
+  late MockAnalyticsService analytics;
 
   setUp(() {
     getTasks = MockGetTasksUseCase();
     repository = MockTaskRepository();
+    analytics = MockAnalyticsService();
     when(() => repository.taskUpdates).thenAnswer((_) => const Stream.empty());
     when(() => repository.syncPendingOperations()).thenAnswer((_) async {});
+    when(
+      () => analytics.logEvent(any(), parameters: any(named: 'parameters')),
+    ).thenReturn(null);
   });
 
-  TaskListBloc buildBloc() => TaskListBloc(getTasks, repository);
+  TaskListBloc buildBloc() => TaskListBloc(getTasks, repository, analytics);
 
   group('TaskListStarted', () {
     blocTest<TaskListBloc, TaskListState>(
@@ -198,6 +206,24 @@ void main() {
             .having((s) => s.tasks.length, 'tasks.length', 2)
             .having((s) => s.currentPage, 'currentPage', 1),
       ],
+    );
+
+    test(
+      'refresh() completes once the reload finishes — regression for '
+      'RefreshIndicator spinning forever when raced against stream.firstWhere',
+      () async {
+        when(() => getTasks(page: 1)).thenAnswer(
+          (_) async =>
+              const Ok(TaskPage(tasks: [], hasMore: false, isFromCache: false)),
+        );
+        final bloc = buildBloc();
+        bloc.add(const TaskListStarted());
+        await bloc.stream.firstWhere((s) => s is TaskListLoadSuccess);
+
+        await bloc.refresh().timeout(const Duration(seconds: 1));
+
+        await bloc.close();
+      },
     );
   });
 }

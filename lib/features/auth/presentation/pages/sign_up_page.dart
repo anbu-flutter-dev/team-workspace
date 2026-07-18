@@ -38,8 +38,9 @@ class _SignUpPageState extends State<SignUpPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Create account')),
+      appBar: AppBar(),
       body: BlocListener<AuthBloc, AuthState>(
         listenWhen: (previous, current) => current is AuthSubmissionFailure,
         listener: (context, state) {
@@ -59,10 +60,23 @@ class _SignUpPageState extends State<SignUpPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    Text(
+                      'Create your account',
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Set up a profile to start managing tasks',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 32),
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(labelText: 'Email'),
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        prefixIcon: Icon(Icons.mail_outline),
+                      ),
                       validator: Validators.email,
                     ),
                     const SizedBox(height: 16),
@@ -70,7 +84,10 @@ class _SignUpPageState extends State<SignUpPage> {
                       controller: _passwordController,
                       obscureText: true,
                       keyboardType: TextInputType.visiblePassword,
-                      decoration: const InputDecoration(labelText: 'Password'),
+                      decoration: const InputDecoration(
+                        labelText: 'Password',
+                        prefixIcon: Icon(Icons.lock_outline),
+                      ),
                       validator: Validators.password,
                     ),
                     const SizedBox(height: 16),
@@ -80,13 +97,14 @@ class _SignUpPageState extends State<SignUpPage> {
                       keyboardType: TextInputType.visiblePassword,
                       decoration: const InputDecoration(
                         labelText: 'Confirm password',
+                        prefixIcon: Icon(Icons.lock_outline),
                       ),
                       validator: (value) => Validators.confirmPassword(
                         value,
                         _passwordController.text,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 28),
                     BlocBuilder<AuthBloc, AuthState>(
                       buildWhen: (previous, current) =>
                           current is AuthSubmissionInProgress ||
@@ -96,16 +114,31 @@ class _SignUpPageState extends State<SignUpPage> {
                         return ElevatedButton(
                           onPressed: isLoading ? null : _submit,
                           child: isLoading
-                              ? const SizedBox(
+                              ? SizedBox(
                                   height: 20,
                                   width: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
+                                    color: colorScheme.onPrimary,
                                   ),
                                 )
                               : const Text('Sign up'),
                         );
                       },
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Already have an account?',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.of(context).maybePop(),
+                          child: const Text('Log in'),
+                        ),
+                      ],
                     ),
                   ],
                 ),

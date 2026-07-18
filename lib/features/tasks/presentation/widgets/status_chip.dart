@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:team_workspace/core/theme/app_colors.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task_status.dart';
 
 class StatusChip extends StatelessWidget {
@@ -6,10 +7,16 @@ class StatusChip extends StatelessWidget {
 
   final TaskStatus status;
 
-  Color _color(BuildContext context) => switch (status) {
-    TaskStatus.pending => Colors.grey.shade600,
-    TaskStatus.inProgress => Theme.of(context).colorScheme.primary,
-    TaskStatus.completed => Colors.green.shade700,
+  Color get _color => switch (status) {
+    TaskStatus.pending => AppColors.statusPending,
+    TaskStatus.inProgress => AppColors.statusInProgress,
+    TaskStatus.completed => AppColors.statusCompleted,
+  };
+
+  IconData get _icon => switch (status) {
+    TaskStatus.pending => Icons.schedule_rounded,
+    TaskStatus.inProgress => Icons.autorenew_rounded,
+    TaskStatus.completed => Icons.check_circle_rounded,
   };
 
   String get _label => switch (status) {
@@ -20,20 +27,26 @@ class StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _color(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        border: Border.all(color: color.withValues(alpha: 0.5)),
+        border: Border.all(color: _color.withValues(alpha: 0.5)),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Text(
-        _label,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(_icon, size: 12, color: _color),
+          const SizedBox(width: 5),
+          Text(
+            _label,
+            style: TextStyle(
+              color: _color,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }

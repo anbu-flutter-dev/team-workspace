@@ -4,9 +4,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+import 'package:team_workspace/core/analytics/analytics_service.dart';
+import 'package:team_workspace/core/analytics/console_analytics_service.dart';
 import 'package:team_workspace/core/di/hive_boxes.dart';
 import 'package:team_workspace/core/network/api_constants.dart';
 import 'package:team_workspace/core/network/logging_interceptor.dart';
+import 'package:team_workspace/core/theme/theme_cubit.dart';
+import 'package:team_workspace/core/theme/theme_mode_store.dart';
 import 'package:team_workspace/features/auth/data/datasources/auth_remote_datasource.dart';
 import 'package:team_workspace/features/auth/data/repositories/auth_repository_impl.dart';
 import 'package:team_workspace/features/auth/domain/repositories/auth_repository.dart';
@@ -41,7 +45,8 @@ void _registerExternalDependencies() {
   getIt
     ..registerLazySingleton<Dio>(_buildDio)
     ..registerLazySingleton<FirebaseAuth>(() => FirebaseAuth.instance)
-    ..registerLazySingleton<Connectivity>(Connectivity.new);
+    ..registerLazySingleton<Connectivity>(Connectivity.new)
+    ..registerLazySingleton<AnalyticsService>(ConsoleAnalyticsService.new);
 }
 
 Dio _buildDio() {
@@ -60,11 +65,14 @@ Future<void> _registerHiveBoxes() async {
   final overlayBox = await Hive.openBox(HiveBoxes.taskOverlay);
   final cacheBox = await Hive.openBox(HiveBoxes.taskCache);
   final queueBox = await Hive.openBox(HiveBoxes.writeQueue);
+  final settingsBox = await Hive.openBox(HiveBoxes.settings);
 
   getIt
     ..registerLazySingleton(() => TaskOverlayStore(overlayBox))
     ..registerLazySingleton(() => TaskCacheStore(cacheBox))
-    ..registerLazySingleton(() => PendingSyncStore(queueBox));
+    ..registerLazySingleton(() => PendingSyncStore(queueBox))
+    ..registerLazySingleton(() => ThemeModeStore(settingsBox))
+    ..registerLazySingleton(() => ThemeCubit(getIt()));
 }
 
 void _registerAuthFeature() {
@@ -76,7 +84,9 @@ void _registerAuthFeature() {
     ..registerFactory(() => SignInUseCase(getIt()))
     ..registerFactory(() => SignUpUseCase(getIt()))
     ..registerFactory(() => SignOutUseCase(getIt()))
-    ..registerLazySingleton(() => AuthBloc(getIt(), getIt(), getIt(), getIt()));
+    ..registerLazySingleton(
+      () => AuthBloc(getIt(), getIt(), getIt(), getIt(), getIt()),
+    );
 }
 
 void _registerTasksFeature() {
@@ -85,13 +95,20 @@ void _registerTasksFeature() {
       () => TaskRemoteDataSourceImpl(getIt()),
     )
     ..registerLazySingleton<TaskRepository>(
-      () => TaskRepositoryImpl(getIt(), getIt(), getIt(), getIt(), getIt()),
+      () => TaskRepositoryImpl(
+        getIt(),
+        getIt(),
+        getIt(),
+        getIt(),
+        getIt(),
+        getIt(),
+      ),
     )
     ..registerFactory(() => GetTasksUseCase(getIt()))
     ..registerFactory(() => GetTaskByIdUseCase(getIt()))
     ..registerFactory(() => CreateTaskUseCase(getIt()))
     ..registerFactory(() => UpdateTaskUseCase(getIt()))
-    ..registerFactory(() => TaskListBloc(getIt(), getIt()))
+    ..registerFactory(() => TaskListBloc(getIt(), getIt(), getIt()))
     ..registerFactory(() => TaskDetailBloc(getIt(), getIt(), getIt()))
     ..registerFactory(() => TaskFormBloc(getIt(), getIt()));
 }

@@ -16,7 +16,11 @@ class PendingSyncStore {
 
   List<String> read() {
     final ids = _box.get(_key);
-    return ids is List ? ids.cast<String>() : [];
+    // A genuine copy, not a cast view over Hive's stored list — callers
+    // (like syncPendingOperations) iterate this while add()/remove() mutate
+    // the box, and a live view over the same underlying list throws
+    // ConcurrentModificationError when that happens mid-iteration.
+    return ids is List ? List<String>.from(ids.cast<String>()) : [];
   }
 
   Future<void> add(String id) {

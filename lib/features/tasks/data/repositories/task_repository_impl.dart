@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:team_workspace/core/analytics/analytics_service.dart';
 import 'package:team_workspace/core/error/exceptions.dart';
 import 'package:team_workspace/core/error/failure.dart';
 import 'package:team_workspace/core/error/result.dart';
@@ -25,6 +26,7 @@ class TaskRepositoryImpl implements TaskRepository {
     this._cache,
     this._pendingSync,
     this._connectivity,
+    this._analytics,
   ) {
     // Not stored: this repository is a singleton for the app's lifetime, so
     // there's no meaningful moment to cancel the subscription anyway.
@@ -38,6 +40,7 @@ class TaskRepositoryImpl implements TaskRepository {
   final TaskCacheStore _cache;
   final PendingSyncStore _pendingSync;
   final Connectivity _connectivity;
+  final AnalyticsService _analytics;
 
   final StreamController<Task> _taskUpdatesController =
       StreamController.broadcast();
@@ -140,7 +143,7 @@ class TaskRepositoryImpl implements TaskRepository {
     required String description,
     required TaskPriority priority,
     required DateTime dueDate,
-  }) {
+  }) async {
     final id = 'local_${DateTime.now().millisecondsSinceEpoch}';
     final task = Task(
       id: id,
@@ -151,14 +154,22 @@ class TaskRepositoryImpl implements TaskRepository {
       status: TaskStatus.pending,
       assignedUser: TaskEnrichment.assignedUserFor(id.hashCode),
     );
-    return _saveLocallyThenSyncRemote(
+    final result = await _saveLocallyThenSyncRemote(
       task,
       remoteCall: () => _remote.createTask(todo: title, completed: false),
     );
+    result.fold(
+      (_) {},
+      (created) => _analytics.logEvent(
+        'task_created',
+        parameters: {'priority': created.priority.name},
+      ),
+    );
+    return result;
   }
 
   @override
-  Future<Result<Task>> updateTask(Task task) {
+  Future<Result<Task>> updateTask(Task task) async {
     // A task that's never synced yet has no numeric id for the API to look
     // up — its only remote call left is the create it's still waiting on.
     final remoteCall = task.isLocalOnly
@@ -168,7 +179,18 @@ class TaskRepositoryImpl implements TaskRepository {
             todo: task.title,
             completed: task.isCompleted,
           );
-    return _saveLocallyThenSyncRemote(task, remoteCall: remoteCall);
+    final result = await _saveLocallyThenSyncRemote(
+      task,
+      remoteCall: remoteCall,
+    );
+    result.fold(
+      (_) {},
+      (updated) => _analytics.logEvent(
+        'task_updated',
+        parameters: {'status': updated.status.name},
+      ),
+    );
+    return result;
   }
 
   /// Every write (create, edit, status toggle) follows the same shape:

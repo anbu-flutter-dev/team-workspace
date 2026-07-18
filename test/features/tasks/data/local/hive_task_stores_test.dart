@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive_ce.dart';
+import 'package:team_workspace/features/tasks/data/local/pending_sync_store.dart';
 import 'package:team_workspace/features/tasks/data/local/task_cache_store.dart';
 import 'package:team_workspace/features/tasks/data/local/task_overlay_store.dart';
 import 'package:team_workspace/features/tasks/domain/entities/assigned_user.dart';
@@ -72,4 +73,27 @@ void main() {
       expect(roundTripped, [task]);
     },
   );
+
+  test('PendingSyncStore.read() survives being iterated while remove() is '
+      'called mid-loop, mirroring syncPendingOperations', () async {
+    final box = await Hive.openBox('pending_sync_test');
+    final store = PendingSyncStore(box);
+    await store.add('1');
+    await store.add('2');
+    await store.add('3');
+
+    // Same shape as TaskRepositoryImpl.syncPendingOperations: iterate the
+    // ids read once, removing each as it's processed. A read() that
+    // returns a lazy cast view over Hive's own stored list (instead of a
+    // copy) throws ConcurrentModificationError here, because remove()
+    // mutates that same underlying list mid-iteration.
+    final processed = <String>[];
+    for (final id in store.read()) {
+      processed.add(id);
+      await store.remove(id);
+    }
+
+    expect(processed, ['1', '2', '3']);
+    expect(store.read(), isEmpty);
+  });
 }

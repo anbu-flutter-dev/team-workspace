@@ -135,21 +135,29 @@ class _TaskFormBodyState extends State<_TaskFormBody> {
                 TextFormField(
                   controller: _titleController,
                   maxLength: 100,
-                  decoration: const InputDecoration(labelText: 'Title'),
+                  decoration: const InputDecoration(
+                    labelText: 'Title',
+                    prefixIcon: Icon(Icons.title_rounded),
+                  ),
                   validator: (value) => Validators.required(
                     value,
                     fieldName: 'Title',
                     maxLength: 100,
                   ),
                 ),
+                const SizedBox(height: 4),
                 TextFormField(
                   controller: _descriptionController,
-                  decoration: const InputDecoration(labelText: 'Description'),
+                  decoration: const InputDecoration(
+                    labelText: 'Description',
+                    alignLabelWithHint: true,
+                    prefixIcon: Icon(Icons.notes_rounded),
+                  ),
                   maxLines: 4,
                   validator: (value) =>
                       Validators.required(value, fieldName: 'Description'),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
                 Text('Priority', style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: 8),
                 SegmentedButton<TaskPriority>(
@@ -172,7 +180,7 @@ class _TaskFormBodyState extends State<_TaskFormBody> {
                       setState(() => _priority = selection.first),
                 ),
                 if (_isEditMode) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   Text('Status', style: Theme.of(context).textTheme.titleSmall),
                   const SizedBox(height: 8),
                   SegmentedButton<TaskStatus>(
@@ -201,7 +209,7 @@ class _TaskFormBodyState extends State<_TaskFormBody> {
                         setState(() => _status = selection.first),
                   ),
                 ],
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
                 Text('Due date', style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: 8),
                 FormField<DateTime>(
@@ -213,7 +221,7 @@ class _TaskFormBodyState extends State<_TaskFormBody> {
                       children: [
                         OutlinedButton.icon(
                           onPressed: _pickDueDate,
-                          icon: const Icon(Icons.event),
+                          icon: const Icon(Icons.event_outlined),
                           label: Text(DateFormatter.dueDate(_dueDate)),
                         ),
                         if (field.hasError)
@@ -240,15 +248,32 @@ class _TaskFormBodyState extends State<_TaskFormBody> {
                       child: ElevatedButton(
                         onPressed: isSubmitting ? null : _submit,
                         child: isSubmitting
-                            ? const SizedBox(
+                            ? SizedBox(
                                 height: 20,
                                 width: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimary,
                                 ),
                               )
-                            : Text(
-                                _isEditMode ? 'Save changes' : 'Create task',
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    _isEditMode
+                                        ? Icons.check_rounded
+                                        : Icons.add_rounded,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    _isEditMode
+                                        ? 'Save changes'
+                                        : 'Create task',
+                                  ),
+                                ],
                               ),
                       ),
                     );

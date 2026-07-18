@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:team_workspace/core/analytics/analytics_service.dart';
 import 'package:team_workspace/core/error/result.dart';
 import 'package:team_workspace/features/auth/domain/entities/app_user.dart';
 import 'package:team_workspace/features/auth/domain/repositories/auth_repository.dart';
@@ -9,8 +10,13 @@ import 'package:team_workspace/features/auth/presentation/bloc/auth_event.dart';
 import 'package:team_workspace/features/auth/presentation/bloc/auth_state.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
-  AuthBloc(this._authRepository, this._signIn, this._signUp, this._signOut)
-    : super(const AuthInitial()) {
+  AuthBloc(
+    this._authRepository,
+    this._signIn,
+    this._signUp,
+    this._signOut,
+    this._analytics,
+  ) : super(const AuthInitial()) {
     on<AuthSubscriptionRequested>(_onSubscriptionRequested);
     on<AuthSignInSubmitted>(_onSignInSubmitted);
     on<AuthSignUpSubmitted>(_onSignUpSubmitted);
@@ -21,6 +27,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final SignInUseCase _signIn;
   final SignUpUseCase _signUp;
   final SignOutUseCase _signOut;
+  final AnalyticsService _analytics;
 
   Future<void> _onSubscriptionRequested(
     AuthSubscriptionRequested event,
@@ -44,7 +51,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     result.fold((failure) {
       emit(AuthSubmissionFailure(failure.message));
       emit(const AuthUnauthenticated());
-    }, (_) {});
+    }, (_) => _analytics.logEvent('sign_in_success'));
   }
 
   Future<void> _onSignUpSubmitted(
@@ -56,7 +63,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     result.fold((failure) {
       emit(AuthSubmissionFailure(failure.message));
       emit(const AuthUnauthenticated());
-    }, (_) {});
+    }, (_) => _analytics.logEvent('sign_up_success'));
   }
 
   Future<void> _onSignOutRequested(
@@ -64,5 +71,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     Emitter<AuthState> emit,
   ) async {
     await _signOut();
+    _analytics.logEvent('sign_out');
   }
 }

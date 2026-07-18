@@ -1,8 +1,10 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:team_workspace/core/di/injection.dart';
+import 'package:team_workspace/core/theme/theme_cubit.dart';
 import 'package:team_workspace/features/tasks/domain/entities/assigned_user.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task_priority.dart';
@@ -14,6 +16,8 @@ import 'package:team_workspace/features/tasks/presentation/pages/dashboard_page.
 
 class MockTaskListBloc extends MockBloc<TaskListEvent, TaskListState>
     implements TaskListBloc {}
+
+class MockThemeCubit extends MockCubit<ThemeMode> implements ThemeCubit {}
 
 Task _task(String id, String title) => Task(
   id: id,
@@ -27,18 +31,27 @@ Task _task(String id, String title) => Task(
 
 void main() {
   late MockTaskListBloc bloc;
+  late MockThemeCubit themeCubit;
 
   setUp(() {
     bloc = MockTaskListBloc();
     if (getIt.isRegistered<TaskListBloc>()) getIt.unregister<TaskListBloc>();
     getIt.registerFactory<TaskListBloc>(() => bloc);
+
+    themeCubit = MockThemeCubit();
+    when(() => themeCubit.state).thenReturn(ThemeMode.system);
   });
 
   tearDown(() async {
     await getIt.reset();
   });
 
-  Widget buildSubject() => const MaterialApp(home: DashboardPage());
+  Widget buildSubject() => MaterialApp(
+    home: BlocProvider<ThemeCubit>.value(
+      value: themeCubit,
+      child: const DashboardPage(),
+    ),
+  );
 
   void stub(TaskListState state) {
     when(() => bloc.state).thenReturn(state);

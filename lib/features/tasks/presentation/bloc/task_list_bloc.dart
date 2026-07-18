@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:team_workspace/core/analytics/analytics_service.dart';
 import 'package:team_workspace/core/error/result.dart';
 import 'package:team_workspace/core/network/api_constants.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task.dart';
@@ -10,7 +11,7 @@ import 'package:team_workspace/features/tasks/presentation/bloc/task_list_event.
 import 'package:team_workspace/features/tasks/presentation/bloc/task_list_state.dart';
 
 class TaskListBloc extends Bloc<TaskListEvent, TaskListState> {
-  TaskListBloc(this._getTasks, this._repository)
+  TaskListBloc(this._getTasks, this._repository, this._analytics)
     : super(const TaskListLoading()) {
     on<TaskListStarted>(_onStarted);
     on<TaskListRefreshRequested>(_onRefreshRequested);
@@ -27,7 +28,23 @@ class TaskListBloc extends Bloc<TaskListEvent, TaskListState> {
 
   final GetTasksUseCase _getTasks;
   final TaskRepository _repository;
+  final AnalyticsService _analytics;
   late final StreamSubscription<Task> _taskUpdatesSubscription;
+  Completer<void>? _refreshCompleter;
+
+  /// Fires a refresh and returns a Future that resolves once it (and any
+  /// pagination top-up) is fully done — used by RefreshIndicator. Not based
+  /// on racing `stream.firstWhere` against `add()`: this bloc never emits
+  /// TaskListLoading during a refresh, so the first post-refresh emission
+  /// can be an intermediate pagination state rather than the final one,
+  /// and depending on scheduling that race can also simply be lost,
+  /// leaving the spinner stuck forever.
+  Future<void> refresh() {
+    final completer = Completer<void>();
+    _refreshCompleter = completer;
+    add(const TaskListRefreshRequested());
+    return completer.future;
+  }
 
   Future<void> _onStarted(
     TaskListStarted event,
@@ -73,6 +90,8 @@ class TaskListBloc extends Bloc<TaskListEvent, TaskListState> {
       ),
     );
     await _ensureEnoughFilteredResults(emit);
+    _refreshCompleter?.complete();
+    _refreshCompleter = null;
   }
 
   Future<void> _onNextPageRequested(
@@ -150,6 +169,7 @@ class TaskListBloc extends Bloc<TaskListEvent, TaskListState> {
     final current = state;
     if (current is! TaskListLoadSuccess) return;
     emit(current.copyWith(searchQuery: event.query));
+    if (event.query.isNotEmpty) _analytics.logEvent('search_performed');
     await _ensureEnoughFilteredResults(emit);
   }
 
@@ -160,8 +180,15 @@ class TaskListBloc extends Bloc<TaskListEvent, TaskListState> {
     final current = state;
     if (current is! TaskListLoadSuccess) return;
     final updated = Set.of(current.selectedStatuses);
-    if (!updated.remove(event.status)) updated.add(event.status);
+    final isSelecting = !updated.remove(event.status);
+    if (isSelecting) updated.add(event.status);
     emit(current.copyWith(selectedStatuses: updated));
+    if (isSelecting) {
+      _analytics.logEvent(
+        'filter_applied',
+        parameters: {'type': 'status', 'value': event.status.name},
+      );
+    }
     await _ensureEnoughFilteredResults(emit);
   }
 
@@ -172,8 +199,15 @@ class TaskListBloc extends Bloc<TaskListEvent, TaskListState> {
     final current = state;
     if (current is! TaskListLoadSuccess) return;
     final updated = Set.of(current.selectedPriorities);
-    if (!updated.remove(event.priority)) updated.add(event.priority);
+    final isSelecting = !updated.remove(event.priority);
+    if (isSelecting) updated.add(event.priority);
     emit(current.copyWith(selectedPriorities: updated));
+    if (isSelecting) {
+      _analytics.logEvent(
+        'filter_applied',
+        parameters: {'type': 'priority', 'value': event.priority.name},
+      );
+    }
     await _ensureEnoughFilteredResults(emit);
   }
 

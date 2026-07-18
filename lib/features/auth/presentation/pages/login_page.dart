@@ -38,6 +38,7 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
       body: BlocListener<AuthBloc, AuthState>(
         listenWhen: (previous, current) => current is AuthSubmissionFailure,
@@ -58,30 +59,38 @@ class _LoginPageState extends State<LoginPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    const SizedBox(height: 20),
                     Text(
-                      'Team Workspace',
+                      'Welcome back',
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Text(
-                      'Sign in to continue',
+                      'Sign in to keep track of your team\'s work',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 32),
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(labelText: 'Email'),
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        prefixIcon: Icon(Icons.mail_outline),
+                      ),
                       validator: Validators.email,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _passwordController,
                       obscureText: true,
-                      decoration: const InputDecoration(labelText: 'Password'),
+                      keyboardType: TextInputType.visiblePassword,
+                      decoration: const InputDecoration(
+                        labelText: 'Password',
+                        prefixIcon: Icon(Icons.lock_outline),
+                      ),
                       validator: Validators.password,
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 28),
                     BlocBuilder<AuthBloc, AuthState>(
                       buildWhen: (previous, current) =>
                           current is AuthSubmissionInProgress ||
@@ -91,21 +100,31 @@ class _LoginPageState extends State<LoginPage> {
                         return ElevatedButton(
                           onPressed: isLoading ? null : _submit,
                           child: isLoading
-                              ? const SizedBox(
+                              ? SizedBox(
                                   height: 20,
                                   width: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
+                                    color: colorScheme.onPrimary,
                                   ),
                                 )
                               : const Text('Sign in'),
                         );
                       },
                     ),
-                    const SizedBox(height: 12),
-                    TextButton(
-                      onPressed: () => context.push(AppRoutes.signUp),
-                      child: const Text("Don't have an account? Sign up"),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          "Don't have an account?",
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        TextButton(
+                          onPressed: () => context.push(AppRoutes.signUp),
+                          child: const Text('Sign up'),
+                        ),
+                      ],
                     ),
                   ],
                 ),
