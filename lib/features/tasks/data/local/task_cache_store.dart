@@ -1,4 +1,5 @@
 import 'package:hive_ce/hive_ce.dart';
+import 'package:team_workspace/core/utils/json_normalize.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task.dart';
 
 /// Snapshot of the last task list that was successfully loaded.
@@ -18,7 +19,7 @@ class TaskCacheStore {
     if (json is! List) return null;
     return json
         .whereType<Map>()
-        .map((entry) => Task.fromJson(Map<String, dynamic>.from(entry)))
+        .map((entry) => Task.fromJson(normalizeJsonMap(entry)))
         .toList();
   }
 

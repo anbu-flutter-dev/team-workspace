@@ -1,4 +1,5 @@
 import 'package:hive_ce/hive_ce.dart';
+import 'package:team_workspace/core/utils/json_normalize.dart';
 import 'package:team_workspace/features/tasks/domain/entities/task.dart';
 
 /// Remembers the latest version of any task created or edited on this device.
@@ -19,7 +20,7 @@ class TaskOverlayStore {
     for (final id in _box.keys) {
       final json = _box.get(id);
       if (json is Map) {
-        tasks[id as String] = Task.fromJson(Map<String, dynamic>.from(json));
+        tasks[id as String] = Task.fromJson(normalizeJsonMap(json));
       }
     }
     return tasks;
