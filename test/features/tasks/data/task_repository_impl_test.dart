@@ -1,6 +1,8 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:team_workspace/core/error/exceptions.dart';
+import 'package:team_workspace/core/error/failure.dart';
 import 'package:team_workspace/core/error/result.dart';
 import 'package:team_workspace/features/tasks/data/datasources/task_remote_datasource.dart';
 import 'package:team_workspace/features/tasks/data/local/pending_sync_store.dart';
@@ -118,6 +120,52 @@ void main() {
           'local_100',
           '1',
         ]);
+      },
+    );
+  });
+
+  group('getTasks failure handling', () {
+    // Regression coverage: any failure mode has to resolve into a Result.
+    // Before this fix, only NetworkException/ServerException were caught —
+    // anything else escaped getTasks uncaught, which left TaskListBloc
+    // stuck on its loading state forever (no error, no cached fallback).
+    test('NetworkException falls back to cached data when available', () async {
+      when(() => remote.fetchTasks(page: 1)).thenThrow(NetworkException());
+      when(() => overlay.readAll()).thenReturn({});
+      when(
+        () => cache.read(),
+      ).thenReturn([_overlayTask('1', title: 'Cached task')]);
+
+      final result = await repository.getTasks(page: 1);
+
+      final page = result.fold((_) => null, (p) => p);
+      expect(page, isNotNull);
+      expect(page!.isFromCache, isTrue);
+      expect(page.tasks.single.title, 'Cached task');
+    });
+
+    test('NetworkException with no cache returns NetworkFailure', () async {
+      when(() => remote.fetchTasks(page: 1)).thenThrow(NetworkException());
+      when(() => cache.read()).thenReturn(null);
+
+      final result = await repository.getTasks(page: 1);
+
+      final failure = result.fold((f) => f, (_) => null);
+      expect(failure, isA<NetworkFailure>());
+    });
+
+    test(
+      'an unexpected Error (not Exception) still resolves into a Result',
+      () async {
+        // TypeError extends Error, not Exception — `on Exception catch` alone
+        // would not have caught this, which is exactly how this bug shipped.
+        when(() => remote.fetchTasks(page: 1)).thenThrow(TypeError());
+        when(() => cache.read()).thenReturn(null);
+
+        final result = await repository.getTasks(page: 1);
+
+        final failure = result.fold((f) => f, (_) => null);
+        expect(failure, isA<ServerFailure>());
       },
     );
   });

@@ -72,14 +72,29 @@ class TaskRepositoryImpl implements TaskRepository {
       final hasMore = response.todos.length == ApiConstants.pageSize;
       return Ok(TaskPage(tasks: tasks, hasMore: hasMore, isFromCache: false));
     } on NetworkException {
-      final cached = page == 1 ? _cache.read() : null;
+      return _cachedPageOrFailure(page, const NetworkFailure());
+    } on ServerException catch (e) {
+      return _cachedPageOrFailure(page, ServerFailure(e.message));
+    } catch (e) {
+      // Deliberately bare, not `on Exception` — a malformed response can
+      // throw a TypeError (an Error, not an Exception) partway through
+      // parsing, and that still has to resolve into a Result. Left
+      // uncaught here, it would escape the bloc's event handler and leave
+      // the dashboard stuck on its loading spinner forever, with no error
+      // shown and no cached fallback.
+      log('unexpected getTasks failure', error: e);
+      return _cachedPageOrFailure(page, const ServerFailure());
+    }
+  }
+
+  Result<TaskPage> _cachedPageOrFailure(int page, Failure failure) {
+    if (page == 1) {
+      final cached = _cache.read();
       if (cached != null) {
         return Ok(TaskPage(tasks: cached, hasMore: false, isFromCache: true));
       }
-      return const Err(NetworkFailure());
-    } on ServerException catch (e) {
-      return Err(ServerFailure(e.message));
     }
+    return Err(failure);
   }
 
   /// Tasks created on this device that dummyjson has never seen — these
@@ -113,6 +128,9 @@ class TaskRepositoryImpl implements TaskRepository {
       return const Err(NetworkFailure());
     } on ServerException catch (e) {
       return Err(ServerFailure(e.message));
+    } catch (e) {
+      log('unexpected getTaskById failure', error: e);
+      return const Err(ServerFailure());
     }
   }
 
