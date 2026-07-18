@@ -8,12 +8,14 @@ class TaskEnrichment {
   TaskEnrichment._();
 
   static const List<String> mockUsers = [
-    'Aditi Rao',
-    'Marcus Chen',
-    'Priya Nair',
-    'Daniel Osei',
-    'Sofia Ruiz',
-    'Ken Watanabe',
+    'Ronaldo',
+    'Maldini',
+    'Beckham',
+    'Messi',
+    'Zidane',
+    'Neymar',
+    'Marcelo',
+    'Pepe',
   ];
 
   static TaskPriority priorityFor(int id) {
@@ -35,8 +37,7 @@ class TaskEnrichment {
 
   static String descriptionFor(int id, String todo) {
     return '$todo\n\n'
-        'Auto-generated detail for demo task #$id — enriched client-side since '
-        'dummyjson only returns a bare title and completion flag.';
+        'Detail for demo task #$id — enriched client-side';
   }
 
   static AssignedUser assignedUserFor(int id) {

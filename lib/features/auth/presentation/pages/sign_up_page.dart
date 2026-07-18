@@ -69,6 +69,7 @@ class _SignUpPageState extends State<SignUpPage> {
                     TextFormField(
                       controller: _passwordController,
                       obscureText: true,
+                      keyboardType: TextInputType.visiblePassword,
                       decoration: const InputDecoration(labelText: 'Password'),
                       validator: Validators.password,
                     ),
@@ -76,6 +77,7 @@ class _SignUpPageState extends State<SignUpPage> {
                     TextFormField(
                       controller: _confirmPasswordController,
                       obscureText: true,
+                      keyboardType: TextInputType.visiblePassword,
                       decoration: const InputDecoration(
                         labelText: 'Confirm password',
                       ),

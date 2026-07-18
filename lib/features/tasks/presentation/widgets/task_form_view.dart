@@ -82,11 +82,6 @@ class _TaskFormBodyState extends State<_TaskFormBody> {
     if (picked != null) setState(() => _dueDate = picked);
   }
 
-  /// Ignores the FormField's own tracked value and reads `_dueDate` directly
-  /// — the date picker already keeps that in sync via setState, so there's
-  /// no need to duplicate that state inside the field itself. This is what
-  /// lets Form.validate() actually enforce "today or later" on submit,
-  /// instead of relying solely on the picker's firstDate to prevent it.
   String? _validateDueDate(DateTime? _) {
     if (_dueDate.isBefore(_startOfToday())) {
       return 'Due date must be today or later';
@@ -159,14 +154,17 @@ class _TaskFormBodyState extends State<_TaskFormBody> {
                 const SizedBox(height: 8),
                 SegmentedButton<TaskPriority>(
                   segments: const [
-                    ButtonSegment(value: TaskPriority.low, label: Text('Low')),
+                    ButtonSegment(
+                      value: TaskPriority.low,
+                      label: Text('Low', style: TextStyle(fontSize: 13)),
+                    ),
                     ButtonSegment(
                       value: TaskPriority.medium,
-                      label: Text('Medium'),
+                      label: Text('Medium', style: TextStyle(fontSize: 13)),
                     ),
                     ButtonSegment(
                       value: TaskPriority.high,
-                      label: Text('High'),
+                      label: Text('High', style: TextStyle(fontSize: 13)),
                     ),
                   ],
                   selected: {_priority},
@@ -181,15 +179,21 @@ class _TaskFormBodyState extends State<_TaskFormBody> {
                     segments: const [
                       ButtonSegment(
                         value: TaskStatus.pending,
-                        label: Text('Pending'),
+                        label: Text('Pending', style: TextStyle(fontSize: 13)),
                       ),
                       ButtonSegment(
                         value: TaskStatus.inProgress,
-                        label: Text('In progress'),
+                        label: Text(
+                          'In progress',
+                          style: TextStyle(fontSize: 13),
+                        ),
                       ),
                       ButtonSegment(
                         value: TaskStatus.completed,
-                        label: Text('Completed'),
+                        label: Text(
+                          'Completed',
+                          style: TextStyle(fontSize: 13),
+                        ),
                       ),
                     ],
                     selected: {_status},
