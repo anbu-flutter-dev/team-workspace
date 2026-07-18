@@ -1,6 +1,6 @@
 # Team Workspace
 
-A task management app I built for a Flutter machine test. Email/password login
+A task management app made in flutter. Email/password login
 through Firebase, a paginated task dashboard backed by
 [dummyjson.com](https://dummyjson.com/todos), offline-first writes with a
 sync-status indicator, pull-to-refresh, search/filter, and a light/dark/system
