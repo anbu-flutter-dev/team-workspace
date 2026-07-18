@@ -30,12 +30,6 @@ import 'package:team_workspace/features/tasks/presentation/bloc/task_list_bloc.d
 
 final GetIt getIt = GetIt.instance;
 
-/// Hand-registered instead of relying on injectable's codegen — the whole
-/// dependency graph is readable top to bottom in this one file, and there's
-/// no build_runner step required just to see what depends on what.
-///
-/// Order matters: each block only registers factories/singletons whose
-/// constructor args were registered by an earlier block.
 Future<void> configureDependencies() async {
   _registerExternalDependencies();
   await _registerHiveBoxes();
